@@ -1,7 +1,12 @@
 <#
 Initial version , Assuming x64 
 #>
-write-verbose "Connect-O365 Binanary Module configuration Version 1.5.7"
+write-host -f green "Connect-O365 Binary Module configuration Version 1.5.7"
+switch ($env:PROCESSOR_ARCHITECTURE)
+{
+    'x86'   {$CPU = 'x86';  $bitness='86' }
+    'AMD64' {$CPU = 'x64';  $bitness='64' }
+}
 @{
     AdminComponents = @( 
         @{
