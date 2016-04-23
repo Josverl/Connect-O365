@@ -59,7 +59,7 @@ write-host -f green "Required Module Info for Connect-O365 script. Configuration
             Tag=  "PNPPS"
             Name= "OfficeDevPnP.PowerShell"
             Type= "Module"
-            Preview=  "Yes"
+            Module= "OfficeDevPnP.PowerShell.V16.Commands"
             Source=  "PSGallery"
             Web= "https://github.com/OfficeDev/PnP-PowerShell"
         }  
