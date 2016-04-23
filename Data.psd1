@@ -1,6 +1,7 @@
 <#
 Initial version , Assuming x64 
 #>
+write-verbose "Connect-O365 Binanary Module configuration Version 1.5.7"
 @{
     AdminComponents = @( 
         @{
