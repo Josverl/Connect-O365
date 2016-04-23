@@ -8,7 +8,7 @@
 #>
 write-host -f green "Required Module Info for Connect-O365 script. Configuration Version 1.6.0"
 @{
-    Version = [version]"1.6.0";
+    Version = "1.6.0";
     AdminComponents = @( 
         @{
             Tag=  "SIA"
