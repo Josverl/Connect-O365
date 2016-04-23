@@ -49,10 +49,9 @@ Initial version , Assuming x64
         },
         @{
             Tag=  "PNPPS"
-            name= "Office PnP PowerShell"
+            Name= "OfficeDevPnP.PowerShell"
             Type= "Module"
             Preview=  "Yes"
-            Name= "OfficeDevPnP.PowerShell"
             Source=  "PSGallery"
             Web= "https://github.com/OfficeDev/PnP-PowerShell"
         }  
