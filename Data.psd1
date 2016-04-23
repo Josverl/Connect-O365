@@ -1,12 +1,6 @@
-﻿@{
-    Name = 'explorer.exe'
-    Length = 4532304
-    DirectoryName = 'C:\Windows'
-    VersionInfo = @{
-      ProductVersion = '10.0.10240.16384'
-    }
-}
-
+<#
+Initial version , Assuming x64 
+#>
 @{
     AdminComponents = @( 
         @{
@@ -17,53 +11,49 @@
             ID= "{D8AB93B0-6FBF-44A0-971F-C0669B5AE6DD}"
         } , 
         @{ 
-            Tag=   "AAD"
             Module=  "MSOnline"
+            Tag=   "AAD"
             Name= "Windows Azure Active Directory Module for Windows PowerShell"
-            Source= "https://bposast.vo.msecnd.net/MSOPMW/Current/amd64/AdministrationConfig-$Language.msi"
             Type= "MSI"
+            Source= "https://bposast.vo.msecnd.net/MSOPMW/Current/amd64/AdministrationConfig-$Language.msi"
             ID= "{43CC9C53-A217-4850-B5B2-8C347920E500}"
         },
         @{
-            Tag=  "SKYPE"
             Module= "SkypeOnlineConnector"
+            Tag=  "SKYPE"
             Name= "Skype for Business Online, Windows PowerShell Module"
-            Source= "https://download.microsoft.com/download/2/0/5/2050B39B-4DA5-48E0-B768-583533B42C3B/SkypeOnlinePowershell.exe"
             Type= "EXE"
+            Source= "https://download.microsoft.com/download/2/0/5/2050B39B-4DA5-48E0-B768-583533B42C3B/SkypeOnlinePowershell.exe"
             SetupOptions=  "/Install /Passive"
             ID= "{D7334D5D-0FA2-4DA9-8D8A-883F8C0BD41B}"
         },
-
         @{
-            Tag=  "SPO"
             Module=  "Microsoft.Online.SharePoint.PowerShell"
+            Tag=  "SPO"
             Name= "SharePoint Online Management Shell"
-        
-            Source=  "https://download.microsoft.com/download/0/2/E/02E7E5BA-2190-44A8-B407-BC73CA0D6B87/sharepointonlinemanagementshell_5111-1200_x64_$LangCountry.msi"
             Type= "MSI"
+            Source=  "https://download.microsoft.com/download/0/2/E/02E7E5BA-2190-44A8-B407-BC73CA0D6B87/sharepointonlinemanagementshell_5111-1200_x64_$LangCountry.msi"
             Version=  "16.0.5111.1200"
             Web= "https://www.microsoft.com/en-us/download/confirmation.aspx?id=35588&6B49FDFB-8E5B-4B07-BC31-15695C5A2143=1"
             ID= "{95160000-115B-0409-1000-0000000FF1CE}"
-            
         },
-
         @{
             Tag=  "RMS"
-            Module=  "aadrm"
             Name= "Windows Azure AD Rights Management Administration"
-            Source=  "https://download.microsoft.com/download/1/6/6/166A2668-2FA6-4C8C-BBC5-93409D47B339/WindowsAzureADRightsManagementAdministration_x64.exe"
             Type= "EXE"
+            Module=  "aadrm"
+            Source=  "https://download.microsoft.com/download/1/6/6/166A2668-2FA6-4C8C-BBC5-93409D47B339/WindowsAzureADRightsManagementAdministration_x64.exe"
             Version=  " 1.0.1443.901"
             Web= "https://www.microsoft.com/en-us/download/confirmation.aspx?id=30339"
             ID= "{6EACEC8B-7174-4180-B8D6-528D7B2C09F0}"
         },
         @{
             Tag=  "PNPPS"
+            name= "Office PnP PowerShell"
+            Type= "Module"
             Preview=  "Yes"
-            Module= "OfficeDevPnP.PowerShell.V16.Commands"
             Name= "OfficeDevPnP.PowerShell"
             Source=  "PSGallery"
-            Type= "Module"
             Web= "https://github.com/OfficeDev/PnP-PowerShell"
         }  
     )
