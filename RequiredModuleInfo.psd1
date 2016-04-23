@@ -1,16 +1,14 @@
 <#
-Initial version , Assuming x64 
-
     Variables that can be used : 
     - $language         EN      NL 
     - $LangCountry      EN-US   NL-NL 
     - $cpu              AMD64   x86
     - $xcpu             x64   x86
     - $bitness          64      32
-
 #>
-write-host -f green "Connect-O365 Binary Module configuration Version 1.5.7"
+write-host -f green "Required Module Info for Connect-O365 script. Configuration Version 1.6.0"
 @{
+    Version = 1.6.0;
     AdminComponents = @( 
         @{
             Tag=  "SIA"
