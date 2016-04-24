@@ -24,12 +24,14 @@ write-host -f green "Required Module Info for Connect-O365 script. Configuration
             Type= "MSI"
             Source= "https://bposast.vo.msecnd.net/MSOPMW/Current/$cpu/AdministrationConfig-$Language.msi"
             ID= "{43CC9C53-A217-4850-B5B2-8C347920E500}"
+            Web = "https://msdn.microsoft.com/en-us/library/jj151815.aspx?f=255&MSPPError=-2147217396"
         },
         @{
             Module= "SkypeOnlineConnector"
             Tag=  "SKYPE"
             Name= "Skype for Business Online, Windows PowerShell Module"
             Type= "EXE"
+            Web = "https://www.microsoft.com/en-us/download/details.aspx?id=39366"
             Source= "https://download.microsoft.com/download/2/0/5/2050B39B-4DA5-48E0-B768-583533B42C3B/SkypeOnlinePowershell.exe"
             SetupOptions=  "/Install /Passive"
             ID= "{D7334D5D-0FA2-4DA9-8D8A-883F8C0BD41B}"
