@@ -3,7 +3,7 @@
 
 I created this script because I foudn it too confusing to remember the different options and installation methods to prepare a workstaion to connect to and administer office 365 services.
 
-What initially started as a few lines, has grown over time to a script that is quite usefull, especially in combination with the ability of powershell 5 ( and earlier versions) to easily add ans update scripts via the Powershell gallery.
+What initially started as a few lines, has grown over time to a script that is quite usefull, especially in combination with the ability of powershell 5 ( and earlier versions) to easily add and update scripts via the Powershell gallery.
 
 The main use cases are :  
 
