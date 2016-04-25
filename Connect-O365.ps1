@@ -1,6 +1,6 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.6.0
+.VERSION 1.6.1
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
@@ -13,12 +13,13 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
-V1.6.0  move to Github
+V1.6.1  Resolve multiple Aliasses per parameter bug on some PS flavours, add test for Sign-in Assistant 
+V1.6.0  Publish to Github
 v1.5.9  update install OS version match logic to use [System.Environment]::OSVersion.Version
-        correct DefaultParameterSetName=”Admin"
-        Add -test option to check correct installation
+......  correct DefaultParameterSetName=”Admin"
+......  Add -test option to check correct installation
 V1.5.8  Seperate configuration download info from script, 
-        Retrieve Module info from github.
+......  Retrieve Module info from github.
 V1.5.7  Update to SPO shell build : 5111 1200 (March 2016)
 v1.5.6  Add -close parameter and fixed parameter sets, added inline help to parameters 
 v1.5.5  Fix Language for MSOnline / AAD module
@@ -96,14 +97,13 @@ Param
     #Connect to Skype Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
-    [Alias("CSO")] 
-    [Alias("Lync")] 
+    [Alias("CSO","Lync")] 
     [switch]$Skype = $false, 
     
     #Connecto to SharePoint Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
-    [Alias("SPO")] 
+    [Alias("SPO","ODFB")] 
     [switch]$SharePoint = $false, 
         
     #Load and connecto to the O365 Compliance center
@@ -114,8 +114,7 @@ Param
     #Connect to Azure Rights Management
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
-    [Alias("AZRMS")] 
-    [Alias("RMS")]
+    [Alias("RMS","AzureRMS")] 
     [switch]$AADRM = $false,
 
     #All Services
@@ -582,19 +581,36 @@ Add-Type @"
 
 #test is both a parameterset as well as an option for installation
 if ($test )  {
+    Write-Host "Test Office 365 administrative components" -ForegroundColor DarkYellow
+
+    $ServiceName ='Microsoft Online Services Sign-in Assistant'
+    Write-Host "Validating Service: $ServiceName"
+    $SignInAssistant = Get-Service -Name msoidsvc
+    if ( $SignInAssistant -eq $null )
+    {
+        Write-Warning "Service : '$ServiceName' is not installed"
+    } else {
+        if ($SignInAssistant.Status -ine "Running" ) {
+            Write-Warning "Service '$ServiceName' is not running"
+        }
+        else {
+            Write-Host "- OK" -ForegroundColor Green
+        }
+    }
+
     #test if all Local modules are installed correctly 
     foreach ($module in @( "MSonline","SkypeOnlineConnector","Microsoft.Online.Sharepoint.PowerShell","OfficeDevPnP.PowerShell.V16.Commands","AADRM" ) ) {
         Write-Host "Validating Module : $Module" 
         $M = Get-Module -Name $module -ListAvailable
         if ($m -eq $null) {
-            Write-warning "Module : $Module Could not be found."
+            Write-warning "Module '$Module' Could not be found."
         } else {
             Try {
                 Import-Module -Name $module -Force -DisableNameChecking
                 remove-module -Name $module -Force
                 Write-Host "- OK" -ForegroundColor Green
             } catch   {
-                Write-warning "Module : $Module Could not be Loaded."
+                Write-warning "Module '$Module' could not be Loaded."
             }
         }
     }
