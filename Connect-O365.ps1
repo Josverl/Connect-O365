@@ -13,7 +13,8 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
-V1.6.1  Resolve multiple Aliasses per parameter bug on some PS flavours, add test for Sign-in Assistant 
+V1.6.1  Resolve multiple Aliases per parameter bug on some PS flavors, add test for Sign-in Assistant 
+......  Add pro-acive check for modules during administration.
 V1.6.0  Publish to Github
 v1.5.9  update install OS version match logic to use [System.Environment]::OSVersion.Version
 ......  correct DefaultParameterSetName=”Admin"
@@ -79,9 +80,7 @@ Param
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [switch]$Persist = $false, 
         
-
-    <# valid for Admin and Close #>
-
+<# valid for Admin and Close #>
     #Connect to Azure AD aka MSOnline 
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
@@ -122,15 +121,12 @@ Param
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [switch]$All = $false,
 
-    <# parameterset Close #>
-
+<# parameterset Close #>
     #Close all open Connections
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [switch]$Close = $false,
 
-
-    <# parameterset INstall #>
-
+<# parameterset INstall #>
     #Download and Install the supporting Modules
     [Parameter(ParameterSetName="Install",Mandatory=$true)]
     [switch]$Install,
@@ -140,14 +136,14 @@ Param
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
     [ValidatePattern("[a-zA-Z]{2}")]
     [Alias("Lang")] 
-    $Language = 'EN',
+    $Language = $Host.CurrentUICulture.TwoLetterISOLanguageName, # EN 
 
     #Specify the Language-Locale code of the modules to download ( not applicable to all modules) 
     #Sample : -Language NL-NL  
     #Sample : -Language EN-US  
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
     [ValidatePattern("[a-zA-Z]{2}-[a-zA-Z]{2}")]
-    $LangCountry = $Host.CurrentUICulture.Name,
+    $LangCountry = $Host.CurrentUICulture.Name, # EN-US
 
     #Specify where to download the installable MSI and EXE modules to 
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
@@ -156,19 +152,17 @@ Param
 #    [Parameter(ParameterSetName="Install",Mandatory=$false)]
 #    $InstallPreview = $true,
 
+#Mixed parameterset
 
     # Save the account credentials for later use        
     [Parameter(ParameterSetName="Test",Mandatory=$false)]    
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
     [switch]$Test = $false, 
 
-    #Not in a specific parameterset
-
     #Force asking for, and optionally force the Perstistance of the credentials.
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
     [switch]$Force = $false
-
 )
 
 function global:Store-myCreds ($username){
@@ -204,12 +198,15 @@ $PSBoundParameters.GetEnumerator() | ForEach-Object { Write-Verbose -Message "$(
 
 #Parameter logic for explicit ans implicit -All 
 
-If ( $PsCmdlet.ParameterSetName -iin "Close","Admin" ) 
+If ( $PsCmdlet.ParameterSetName -ieq "Close" ) 
 {
     if ( $all -eq $false -and  $exchange -eq $false -and $skype -eq $false -and $Compliance -eq $false  -and $SharePoint -eq $false -and $AADRM -eq $false) {
         Write-Verbose "Online Workload specified, assume all workloads"
         $all = $true
     }
+}
+If ( $PsCmdlet.ParameterSetName -iin "Close","Admin" ) 
+{
     if ($all) {
         $AAD = $true
         $Exchange = $true
@@ -222,40 +219,57 @@ If ( $PsCmdlet.ParameterSetName -iin "Close","Admin" )
 
 
 If ( $PsCmdlet.ParameterSetName -eq "Close") {
-    write-verbose "Closing open session(s) for :"
-    #Close Existing (remote Powershell Sessions) 
-    if ($Exchange)   { 
-        write-verbose "- Exchange Online"
-        Get-PSSession -Name "Exchange Online" -ea SilentlyContinue | Remove-PSSession  } 
-    if ($Compliance) { 
-        write-verbose "- Compliance Center"
-        Get-PSSession -Name "Compliance Center"  -ea SilentlyContinue | Remove-PSSession }
-    if ($Skype)      { 
-        write-verbose "- Skype Online"
-        Get-PSSession -Name "Skype Online" -ea SilentlyContinue| Remove-PSSession }
+     Try {
+        write-verbose "Closing open session(s) for :"
+        #Close Existing (remote Powershell Sessions) 
+        if ($Exchange)   { 
+            write-verbose "- Exchange Online"
+            Get-PSSession -Name "Exchange Online" -ea SilentlyContinue | Remove-PSSession  } 
+        if ($Compliance) { 
+            write-verbose "- Compliance Center"
+            Get-PSSession -Name "Compliance Center"  -ea SilentlyContinue | Remove-PSSession }
+        if ($Skype)      { 
+            write-verbose "- Skype Online"
+            Get-PSSession -Name "Skype Online" -ea SilentlyContinue| Remove-PSSession }
     
-    if ($SharePoint) { 
-        write-verbose "- SharePoint Online"
-        Try {Disconnect-SPOService -ErrorAction Ignore } catch{}
-        write-verbose "- Disconnect PNP Powershell"
-        #Also Disconnect PNPPowershell
-        Try { Disconnect-SPOnline -ErrorAction Ignore } catch{}
-    } 
-    If($AADRM) { 
-        write-verbose "- Azure RMS"
-        Disconnect-AadrmService 
-    } 
-    return
+        if ($SharePoint) { 
+            if ( get-module Microsoft.Online.SharePoint.Powershell )
+            {
+                write-verbose "- SharePoint Online"
+                Try {Disconnect-SPOService -ErrorAction Ignore } catch{}
+                write-verbose "- Disconnect PNP Powershell"
+                #Also Disconnect PNPPowershell
+                Try { Disconnect-SPOnline -ErrorAction Ignore } catch{}
+            }
+        } 
+        If($AADRM) { 
+            if ( get-module AADRM )
+            {
+                write-verbose "- Azure RMS"
+                Disconnect-AadrmService 
+            }
+        } 
+        return $True
+    } catch {
+        return $false
+    }
 }
 
 
 If ( $PsCmdlet.ParameterSetName -eq "Admin") {
-
+    
     $admincredentials = Get-myCreds $account -Persist:$Persist -Force:$Force
+    
     if ($admincredentials -eq $null){ throw "A valid Tenant Admin Account is required." } 
 
 
     if ( $AAD) {
+        $mod = 'MSOnline'
+        if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+            Write-warning "Required module: $mod is not installed or cannot be located."
+            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+            return $false
+        }
         write-verbose "Connecting to Azure AD"
         #Imports the installed Azure Active Directory module.
         Import-Module MSOnline -Verbose:$false 
@@ -266,6 +280,12 @@ If ( $PsCmdlet.ParameterSetName -eq "Admin") {
 
     if ($Skype ){
         write-verbose "Connecting to Skype Online"
+        $mod = 'SkypeOnlineConnector'
+        if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+            Write-warning "Required module: $mod is not installed or cannot be located. "
+            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+            return $false
+        }
         #Imports the installed Skype for Business Online services module.
         Import-Module SkypeOnlineConnector -Verbose:$false  -Force 
 
@@ -277,13 +297,14 @@ If ( $PsCmdlet.ParameterSetName -eq "Admin") {
         $SkypeSession.Name="Skype Online"
 
         #Imports Skype for Business session commands into your local Windows PowerShell session.
-        Import-PSSession -Session  $SkypeSession -AllowClobber -Verbose:$false
+        Import-PSSession -Session  $SkypeSession -AllowClobber -Verbose:$false | Out-Null
 
     }
 
 
     If ($SharePoint) {
         write-verbose "Connecting to SharePoint Online"
+
         if (!$AAD) {
             Throw "AAD Connection required"
         } else {
@@ -291,6 +312,12 @@ If ( $PsCmdlet.ParameterSetName -eq "Admin") {
             $tname= (Get-MsolDomain | ?{ $_.IsInitial -eq $true}).Name.Split(".")[0]
         }
 
+        $mod = 'Microsoft.Online.Sharepoint.PowerShell'
+        if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+            Write-warning "Required module: $mod is not installed or cannot be located. "
+            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+            return $false
+        }
         #Imports SharePoint Online session commands into your local Windows PowerShell session.
         Import-Module Microsoft.Online.Sharepoint.PowerShell -DisableNameChecking -Verbose:$false
         #lookup the tenant name based on the intial domain for the tenant
@@ -298,13 +325,18 @@ If ( $PsCmdlet.ParameterSetName -eq "Admin") {
 
         try { 
             write-verbose "Connecting to SharePoint Online PNP"
+            $mod = 'OfficeDevPnP.PowerShell.V16.Commands'
+            if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+                Write-Warning "Required module: $mod is not installed or cannot be located. "
+                Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+                #return $false
+            }
             import-Module OfficeDevPnP.PowerShell.V16.Commands -DisableNameChecking -Verbose:$false
             Connect-SPOnline -Credential $admincredentials -url "https://$tname.sharepoint.com"
         } catch {
             Write-Warning "Unable to connecto to SharePoint Online using the PNP PowerShell module"
         }
     }
-
 
     if ($Exchange ) {
         write-verbose "Connecting to Exchange Online"
@@ -316,8 +348,7 @@ If ( $PsCmdlet.ParameterSetName -eq "Admin") {
         $ExchangeSession = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "https://outlook.office365.com/powershell-liveid/" -Credential $admincredentials -Authentication "Basic" -AllowRedirection
         $ExchangeSession.Name = "Exchange Online"
         #This imports the Office 365 session into your active Shell.
-        Import-PSSession $ExchangeSession -AllowClobber -Verbose:$false
-
+        Import-PSSession $ExchangeSession -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
     }
 
     if ($Compliance) {
@@ -325,23 +356,23 @@ If ( $PsCmdlet.ParameterSetName -eq "Admin") {
         #Remove prior  Session 
         Get-PSSession -Name "Compliance Center" -ea SilentlyContinue| Remove-PSSession 
 
-        $PSCompliance = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://ps.compliance.protection.outlook.com/powershell-liveid/ -Credential $AdminCredentials -Authentication Basic -AllowRedirection
+        $PSCompliance = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://ps.compliance.protection.outlook.com/powershell-liveid/ -Credential $AdminCredentials -Authentication Basic -AllowRedirection -WarningAction Ignore
         $PSCompliance.Name = "Compliance Center"
-        Import-PSSession $PSCompliance -AllowClobber -Verbose:$false 
-
+        Import-PSSession $PSCompliance -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
     }
-
-
     If ($AADRM) {
         write-verbose "Connecting to Azure Rights Management"    
         #Azure RMS 
-
+        $mod = 'AADRM'
+        if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+            Write-Warning "Required module: $mod is not installed or cannot be located. "
+            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+            return $false
+        }
         import-module AADRM -Verbose:$false
         Connect-AadrmService -Credential $admincredentials 
     }
-
 }
-
 
 <#
 .Synopsis
@@ -356,7 +387,6 @@ function Import-DataFile
         [Parameter(Mandatory)]
         [string] $Url
     )
-
     try
     {
         #setup variables to use during configuration expansion
@@ -394,7 +424,8 @@ function Import-DataFile
 
 
 If ( $PsCmdlet.ParameterSetName -eq "Install") {
-
+    #always perform module test after installation 
+    $test = $true
 # Get the location of the downloads folder 
 # Ref : http://stackoverflow.com/questions/25049875/getting-any-special-folder-path-in-powershell-using-folder-guid 
 Add-Type @"
@@ -515,7 +546,7 @@ Add-Type @"
                 # Add check for PS5 / WMF 5 
                 if (Get-Command install-module) { 
                     #check for installed version of this module 
-                    $Current  = Get-Module -Name $c.Module -ListAvailable
+                    $Current  = Get-Module -Name $c.Module -ListAvailable | sort -Property Version | select -First 1
                     $Source = Find-Module -Name $c.Module -Repository $c.Source -Verbose:$false
                     if ( $Current -eq $null ) {
                         write-verbose "Preparing to install module $($c.Module)"
@@ -581,8 +612,8 @@ Add-Type @"
 
 #test is both a parameterset as well as an option for installation
 if ($test )  {
-    Write-Host "Test Office 365 administrative components" -ForegroundColor DarkYellow
-
+    Write-Host 
+    Write-Host "Test Office 365 administrative components..." -ForegroundColor Yellow
     $ServiceName ='Microsoft Online Services Sign-in Assistant'
     Write-Host "Validating Service: $ServiceName"
     $SignInAssistant = Get-Service -Name msoidsvc
@@ -592,6 +623,7 @@ if ($test )  {
     } else {
         if ($SignInAssistant.Status -ine "Running" ) {
             Write-Warning "Service '$ServiceName' is not running"
+            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
         }
         else {
             Write-Host "- OK" -ForegroundColor Green
@@ -603,14 +635,17 @@ if ($test )  {
         Write-Host "Validating Module : $Module" 
         $M = Get-Module -Name $module -ListAvailable
         if ($m -eq $null) {
-            Write-warning "Module '$Module' Could not be found."
+            Write-warning "Module '$Module' is not installed or cannot be located."
+            Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
+
         } else {
             Try {
                 Import-Module -Name $module -Force -DisableNameChecking
                 remove-module -Name $module -Force
                 Write-Host "- OK" -ForegroundColor Green
             } catch   {
-                Write-warning "Module '$Module' could not be Loaded."
+                Write-warning "Module '$Module' could not be Imported."
+                Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
             }
         }
     }
