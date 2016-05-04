@@ -12,3 +12,15 @@ The main use cases are :
 * Install all relevant components and modules ( -Install)
 * Tests the installed Modules ( -Test) 
 
+
+How to Install
+--------------
+Run the below commands from an Admin elevated Powershell :
+
+`Install-Script -Name Connect-O365`
+
+To download and install the supporting modules :
+
+`Connect-O365 -Install`
+
+
