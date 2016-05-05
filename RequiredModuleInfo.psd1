@@ -91,27 +91,7 @@ write-host -f green "Platform : $xcpu, Language : $language ; $LangCountry"
             Version=  "16.0.4915.1200"
             Web= "https://www.microsoft.com/en-us/download/confirmation.aspx?id=35588&6B49FDFB-8E5B-4B07-BC31-15695C5A2143=1"
             ID= "{95160000-115B-0409-1000-0000000FF1CE}"
-        },
-        @{
-            Tag=  "RMS-Protection tool"
-            Description = 
-@"The RMS Protection tool installs the Windows PowerShell module, RMSProtection
-Read the latest information about the RMS Protection cmdlets on MSDN (https://msdn.microsoft.com/library/azure/mt433195.aspx). This includes information about the supported scenarios, prerequisites, any current limitations, and links to each cmdlet help. 
-• Before you begin to use the cmdlets, make sure you read the additional prerequisites and instructions for your deployment of RMS: • For Azure RMS: about_RMSProtection_AzureRMS (https://msdn.microsoft.com/library/azure/mt433202.aspx or "Get-Help about_RMSProtection_AzureRMS" in your Windows PowerShell session).
-• For AD RMS: about_RMSProtection_ADRMS (https://msdn.microsoft.com/library/azure/mt433203.aspx or "Get-Help about_RMSProtection_ADRMS" in your Windows PowerShell session).
-"@
-            Module=  "RMSProtection"
-            Name= ""
-            Source=  "https://download.microsoft.com/download/0/6/6/06619015-6BD2-4CB5-9B66-5FF015457976/setup_RmsPowershell_x64.exe"
-            Type= "MSI"
-            Version=  ""
-            Web= "https://msdn.microsoft.com/library/azure/mt433195.aspx"
-            ID= ""
         }
-        
-        
-        
-
-      ) 
+    ) 
 }       
 
