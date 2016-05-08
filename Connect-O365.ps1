@@ -1,6 +1,6 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.6.3
+.VERSION 1.6.4
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
@@ -13,6 +13,7 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
+V1.6.4  Add autocompletion for saved accounts
 V1.6.3  Add progress bars
 V1.6.2  Resolve multiple Aliases per parameter bug on some PS flavors, 
 V1.6.1  add test for Sign-in Assistant,Add pro-acive check for modules during administration.
@@ -69,12 +70,12 @@ V1.1    Initial publication to scriptcenter
 [OutputType([int])]
 Param
 (
-    # Specify the (Admin) Account to authenticate with 
-<#  Changed to a dynami
+    # Specify the (Admin) Account to authenticate with
+    # paremeter completion is addedd in Dynamic Parameter s 
     [Parameter(ParameterSetName="Admin",Mandatory=$true,Position=0)]
     [ValidateNotNullOrEmpty()]
     [string]$Account,
-#>
+
     # Save the account credentials for later use        
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [switch]$Persist = $false, 
@@ -170,46 +171,21 @@ Param
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
     [switch]$Force = $false
 )
-# Add -account as a dynamic parameter to allow persisted accounts to be selected
-   DynamicParam {
-            # Set the dynamic parameters' name
-            $ParameterName = 'Account'
-            
-            # Create the dictionary 
-            $RuntimeParameterDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
 
-            # Create the collection of attributes
-            $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute]
-            
-            # Create and set the parameters' attributes
-            $ParameterAttribute = New-Object System.Management.Automation.ParameterAttribute
-            $ParameterAttribute.Mandatory = $true
-            $ParameterAttribute.Position = 1
-            $ParameterAttribute.ParameterSetName = "Admin"
-
-            # Add the attributes to the attributes collection
-            $AttributeCollection.Add($ParameterAttribute)
-
-            # Generate and set the ValidateSet 
-            $arrSet = Get-ChildItem -Path "$env:USERPROFILE\Creds" | select -ExpandProperty BaseName
-            $ValidateSetAttribute = New-Object System.Management.Automation.ValidateSetAttribute($arrSet)
-            
-            #allows the intellisense FROM validateset , but match any input
-            $ValidateSetAttribute =  $ValidateSetAttribute | Add-Member -MemberType ScriptMethod -Name Match  -Value {$true} -Force 
-
-            # Add the ValidateSet to the attributes collection
-            $AttributeCollection.Add($ValidateSetAttribute)
-
-            # Create and return the dynamic parameter
-            $RuntimeParameter = New-Object System.Management.Automation.RuntimeDefinedParameter($ParameterName, [string], $AttributeCollection)
-            $RuntimeParameterDictionary.Add($ParameterName, $RuntimeParameter)
-            return $RuntimeParameterDictionary
+DynamicParam {
+    if ($PSVersionTable.PSVersion -ge 5.0.0.0) {
+        Register-ArgumentCompleter  -ParameterName "account" -ScriptBlock { 
+             # Generate and set the CompletionSet
+             #Types : DynamicKeyword / Property story / ProviderItem
+             $arrSet = Get-ChildItem -Path "$env:USERPROFILE\Creds" 
+             $arrSet | ForEach-Object {
+                New-Object System.Management.Automation.CompletionResult $_.BaseName, $_.BaseName, 'DynamicKeyword', $_.FullName
+             }
+        }
     }
-
+}
 
 begin {
-    # Bind the parameter to a friendly variable
-    $Account = $PsBoundParameters['Account']
 
     function global:Store-myCreds ($username){
         $Credential = Get-Credential -Credential $username
