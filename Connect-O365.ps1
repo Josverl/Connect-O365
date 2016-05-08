@@ -70,10 +70,11 @@ V1.1    Initial publication to scriptcenter
 Param
 (
     # Specify the (Admin) Account to authenticate with 
+<#  Changed to a dynami
     [Parameter(ParameterSetName="Admin",Mandatory=$true,Position=0)]
     [ValidateNotNullOrEmpty()]
     [string]$Account,
-
+#>
     # Save the account credentials for later use        
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [switch]$Persist = $false, 
@@ -83,7 +84,7 @@ Param
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("AzureAD")] 
-    [switch]$AAD = $true, 
+    [switch]$AAD = $false, 
 
     #Connect to Exchange Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
@@ -102,6 +103,12 @@ Param
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("SPO","ODFB")] 
     [switch]$SharePoint = $false, 
+
+    #Connecto to SharePoint Online PNP
+    [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Close",Mandatory=$false)]
+    [Alias("PNP")] 
+    [switch]$SharePointPNP = $false, 
         
     #Load and connecto to the O365 Compliance center
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
@@ -141,7 +148,8 @@ Param
     #Sample : -Language EN-US  
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
     [ValidatePattern("[a-zA-Z]{2}-[a-zA-Z]{2}")]
-    $LangCountry = $Host.CurrentUICulture.Name, # EN-US
+    [Alias("LangCountry")]
+    $Culture = $Host.CurrentUICulture.Name, # EN-US
 
     #Specify where to download the installable MSI and EXE modules to 
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
@@ -162,575 +170,644 @@ Param
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
     [switch]$Force = $false
 )
+# Add -account as a dynamic parameter to allow persisted accounts to be selected
+   DynamicParam {
+            # Set the dynamic parameters' name
+            $ParameterName = 'Account'
+            
+            # Create the dictionary 
+            $RuntimeParameterDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
 
-function global:Store-myCreds ($username){
-    $Credential = Get-Credential -Credential $username
-    $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
-    MkDir "$env:USERPROFILE\Creds" -ea 0 | Out-Null
-    $Credential.Password | ConvertFrom-SecureString | Set-Content $store
-    Write-Verbose "Saved credentials to $store"
-    return $Credential 
- }
+            # Create the collection of attributes
+            $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute]
+            
+            # Create and set the parameters' attributes
+            $ParameterAttribute = New-Object System.Management.Automation.ParameterAttribute
+            $ParameterAttribute.Mandatory = $true
+            $ParameterAttribute.Position = 1
+            $ParameterAttribute.ParameterSetName = "Admin"
 
-function global:Get-myCreds ($UserName , [switch]$Persist, [switch]$Force=$false){
-    $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
-    if ( (Test-Path $store) -AND $Force -eq $false ) {
-        #use a stored password if found , unless -force is used to ask for and store a new password
-        Write-Verbose "Retrieved credentials from $store"
-        $Password = Get-Content $store | ConvertTo-SecureString
-        $Credential = New-Object System.Management.Automation.PsCredential($UserName,$Password)
-        return $Credential
-    } else {
-        if ($persist -and -not [string]::IsNullOrEmpty($UserName)) {
-            $admincredentials  = Store-myCreds $UserName
-            return $admincredentials
+            # Add the attributes to the attributes collection
+            $AttributeCollection.Add($ParameterAttribute)
+
+            # Generate and set the ValidateSet 
+            $arrSet = Get-ChildItem -Path "$env:USERPROFILE\Creds" | select -ExpandProperty BaseName
+            $ValidateSetAttribute = New-Object System.Management.Automation.ValidateSetAttribute($arrSet)
+            
+            #allows the intellisense FROM validateset , but match any input
+            $ValidateSetAttribute =  $ValidateSetAttribute | Add-Member -MemberType ScriptMethod -Name Match  -Value {$true} -Force 
+
+            # Add the ValidateSet to the attributes collection
+            $AttributeCollection.Add($ValidateSetAttribute)
+
+            # Create and return the dynamic parameter
+            $RuntimeParameter = New-Object System.Management.Automation.RuntimeDefinedParameter($ParameterName, [string], $AttributeCollection)
+            $RuntimeParameterDictionary.Add($ParameterName, $RuntimeParameter)
+            return $RuntimeParameterDictionary
+    }
+
+
+begin {
+    # Bind the parameter to a friendly variable
+    $Account = $PsBoundParameters['Account']
+
+    function global:Store-myCreds ($username){
+        $Credential = Get-Credential -Credential $username
+        $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
+        MkDir "$env:USERPROFILE\Creds" -ea 0 | Out-Null
+        $Credential.Password | ConvertFrom-SecureString | Set-Content $store
+        Write-Verbose "Saved credentials to $store"
+        return $Credential 
+     }
+
+    function global:Get-myCreds ($UserName , [switch]$Persist, [switch]$Force=$false){
+        $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
+        if ( (Test-Path $store) -AND $Force -eq $false ) {
+            #use a stored password if found , unless -force is used to ask for and store a new password
+            Write-Verbose "Retrieved credentials from $store"
+            $Password = Get-Content $store | ConvertTo-SecureString
+            $Credential = New-Object System.Management.Automation.PsCredential($UserName,$Password)
+            return $Credential
         } else {
-            return Get-Credential -Credential $username
+            if ($persist -and -not [string]::IsNullOrEmpty($UserName)) {
+                $admincredentials  = Store-myCreds $UserName
+                return $admincredentials
+            } else {
+                return Get-Credential -Credential $username
+            }
+        }
+     }
+
+    # Verbose log of the input parameters
+    Write-Verbose -Message 'Connect-O365 Parameters :'
+    $PSBoundParameters.GetEnumerator() | ForEach-Object { Write-Verbose -Message "$($PSItem)" }
+
+    #Parameter logic for explicit ans implicit -All 
+
+    If ( $PsCmdlet.ParameterSetName -ieq "Close" ) 
+    {
+        if ( $all -eq $false -and  $exchange -eq $false -and $skype -eq $false -and $Compliance -eq $false  -and $SharePoint -eq $false -and $AADRM -eq $false) {
+            Write-Verbose "Online Workload specified, assume all workloads"
+            $all = $true
         }
     }
- }
+    If ( $PsCmdlet.ParameterSetName -iin "Close","Admin" ) 
+    {
+        if ( -not ( $Exchange -or $Skype -or $Compliance -or $SharePoint -or $SharePointPNP -or $AADRM ))
+        { $AAD = $true } # default to AAD Only
 
-# 
-Write-Verbose -Message 'Connect-O365 Parameters :'
-$PSBoundParameters.GetEnumerator() | ForEach-Object { Write-Verbose -Message "$($PSItem)" }
-
-#Parameter logic for explicit ans implicit -All 
-
-If ( $PsCmdlet.ParameterSetName -ieq "Close" ) 
-{
-    if ( $all -eq $false -and  $exchange -eq $false -and $skype -eq $false -and $Compliance -eq $false  -and $SharePoint -eq $false -and $AADRM -eq $false) {
-        Write-Verbose "Online Workload specified, assume all workloads"
-        $all = $true
-    }
-}
-If ( $PsCmdlet.ParameterSetName -iin "Close","Admin" ) 
-{
-    if ($all) {
-        $AAD = $true
-        $Exchange = $true
-        $Skype= $true
-        $Compliance = $true
-        $SharePoint= $true
-        $AADRM = $TRUE
-    }
-}
-
-$script:Prog_pct = 0 
-$script:Prog_step = 12
-
-
-If ( $PsCmdlet.ParameterSetName -eq "Close") {
-     Try {
-        write-verbose "Closing open session(s) for :"
-        Write-Progress "Connect-O365" -CurrentOperation "Closing" -PercentComplete $script:Prog_pct ; 
-        $script:Prog_pct += $prog_step
-        #Close Existing (remote Powershell Sessions) 
-        if ($Exchange)   { 
-            Write-Progress "Connect-O365" -CurrentOperation "Closing - Exchange Online" -PercentComplete $script:Prog_pct ; 
-            $script:Prog_pct += $prog_step
-            write-verbose "- Exchange Online"
-            Get-PSSession -Name "Exchange Online" -ea SilentlyContinue | Remove-PSSession  } 
-        if ($Compliance) { 
-            Write-Progress "Connect-O365" -CurrentOperation "Closing - Compliance Center" -PercentComplete $script:Prog_pct ; 
-            $script:Prog_pct += $prog_step
-            write-verbose "- Compliance Center"
-            Get-PSSession -Name "Compliance Center"  -ea SilentlyContinue | Remove-PSSession }
-        if ($Skype)      { 
-            Write-Progress "Connect-O365" -CurrentOperation "Closing - Skype Online" -PercentComplete $script:Prog_pct ; 
-            $script:Prog_pct += $prog_step
-            write-verbose "- Skype Online"
-            Get-PSSession -Name "Skype Online" -ea SilentlyContinue| Remove-PSSession }
+        if ($SharePoint -or $SharePointPNP){
+            ## AAD is used to find the URLS and the tenant name for SharePoint to connect to 
+            $AAD = $true
+        }
     
-        if ($SharePoint) { 
-            if ( get-module Microsoft.Online.SharePoint.Powershell )
-            {
-                Write-Progress "Connect-O365" -CurrentOperation "Closing - SharePoint Online" -PercentComplete $script:Prog_pct ; 
-                $script:Prog_pct += $prog_step
-                write-verbose "- SharePoint Online"
-                Try {Disconnect-SPOService -ErrorAction Ignore } catch{}
-                write-verbose "- Disconnect PNP Powershell"
-                Write-Progress "Connect-O365" -CurrentOperation "Closing - SharePoint Online PnP Powershell" -PercentComplete $script:Prog_pct ; 
-                $script:Prog_pct += $prog_step
-                #Also Disconnect PNPPowershell
-                Try { Disconnect-SPOnline -ErrorAction Ignore } catch{}
-            }
+        if ($all) {
+            $AAD = $true
+            $Exchange = $true
+            $Skype= $true
+            $Compliance = $true
+            $SharePoint= $true
+            $SharePointPNP = $true
+            $AADRM = $TRUE
         } 
-        If($AADRM) { 
-            if ( get-module AADRM )
-            {
-                write-verbose "- Azure RMS"
-                Write-Progress "Connect-O365" -CurrentOperation "Closing - Azure RMS" -PercentComplete $script:Prog_pct ; 
-                $script:Prog_pct += $prog_step
-                Disconnect-AadrmService 
-            }
-        } 
-        return $True
-    } catch {
-        return $false
+    
     }
-    Finally {
-        Write-Progress "Connect-O365" -Completed  
-
-    }
+    # Start and step size for the progress baks 
+    $script:Prog_pct = 0 
+    $script:Prog_step = 12
 }
 
-
-If ( $PsCmdlet.ParameterSetName -eq "Admin") {
-    $operation = "Retrieve Credentials"
-    write-verbose $Operation
-    Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-    $script:Prog_pct += $prog_step        
+Process{ 
+    # Optionally close any prior sessions
+    If ( $PsCmdlet.ParameterSetName -eq "Close") {
+         Try {
+            write-verbose "Closing open session(s) for :"
+            Write-Progress "Connect-O365" -CurrentOperation "Closing" -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step
+            #Close Existing (remote Powershell Sessions) 
+            if ($Exchange)   { 
+                Write-Progress "Connect-O365" -CurrentOperation "Closing - Exchange Online" -PercentComplete $script:Prog_pct ; 
+                $script:Prog_pct += $prog_step
+                write-verbose "- Exchange Online"
+                Get-PSSession -Name "Exchange Online" -ea SilentlyContinue | Remove-PSSession  } 
+            if ($Compliance) { 
+                Write-Progress "Connect-O365" -CurrentOperation "Closing - Compliance Center" -PercentComplete $script:Prog_pct ; 
+                $script:Prog_pct += $prog_step
+                write-verbose "- Compliance Center"
+                Get-PSSession -Name "Compliance Center"  -ea SilentlyContinue | Remove-PSSession }
+            if ($Skype)      { 
+                Write-Progress "Connect-O365" -CurrentOperation "Closing - Skype Online" -PercentComplete $script:Prog_pct ; 
+                $script:Prog_pct += $prog_step
+                write-verbose "- Skype Online"
+                Get-PSSession -Name "Skype Online" -ea SilentlyContinue| Remove-PSSession }
     
-    $admincredentials = Get-myCreds $account -Persist:$Persist -Force:$Force
-    if ($admincredentials -eq $null){ throw "A valid Tenant Admin Account is required." } 
+            if ($SharePoint) { 
+                if ( get-module Microsoft.Online.SharePoint.Powershell )
+                {
+                    Write-Progress "Connect-O365" -CurrentOperation "Closing - SharePoint Online" -PercentComplete $script:Prog_pct ; 
+                    $script:Prog_pct += $prog_step
+                    write-verbose "- SharePoint Online"
+                    Try {Disconnect-SPOService -ErrorAction Ignore } catch{}
+                    
+                }
+            }
+            if ($SharePointPNP) { 
+                if ( get-module OfficeDevPnP.PowerShell.V16.Commands )
+                {
+                    #Also Disconnect PNPPowershell
+                    write-verbose "- Disconnect PNP Powershell"
+                    Write-Progress "Connect-O365" -CurrentOperation "Closing - SharePoint Online PnP Powershell" -PercentComplete $script:Prog_pct ; 
+                    $script:Prog_pct += $prog_step
+                    Try { Disconnect-SPOnline -ErrorAction Ignore } catch{}
+                }
+            } 
+            If($AADRM) { 
+                if ( get-module AADRM )
+                {
+                    write-verbose "- Azure RMS"
+                    Write-Progress "Connect-O365" -CurrentOperation "Closing - Azure RMS" -PercentComplete $script:Prog_pct ; 
+                    $script:Prog_pct += $prog_step
+                    Disconnect-AadrmService 
+                }
+            } 
+            return $True
+        } catch {
+            return $false
+        }
+        Finally {
+            Write-Progress "Connect-O365" -Completed  
+        }
+    }
 
-
-    if ( $AAD) {
-        $operation = "Connecting to Azure AD"
+    # Admin , the main part and purpose 
+    If ( $PsCmdlet.ParameterSetName -eq "Admin") {
+        $operation = "Retrieve Credentials"
         write-verbose $Operation
         Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
         $script:Prog_pct += $prog_step        
+    
+        $admincredentials = Get-myCreds $account -Persist:$Persist -Force:$Force
+        if ($admincredentials -eq $null){ throw "A valid Tenant Admin Account is required." } 
 
-        $mod = 'MSOnline'
-        if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
-            Write-warning "Required module: $mod is not installed or cannot be located."
-            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-            return $false
+        if ( $AAD) {
+            $operation = "Connecting to Azure AD"
+            write-verbose $Operation
+            Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step        
+
+            $mod = 'MSOnline'
+            if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+                Write-warning "Required module: $mod is not installed or cannot be located."
+                Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+                return $false
+            }
+            #Imports the installed Azure Active Directory module.
+            Import-Module MSOnline -Verbose:$false 
+            #Establishes Online Services connection to Office 365 Management Layer.
+            Connect-MsolService -Credential $admincredentials
         }
-        #Imports the installed Azure Active Directory module.
-        Import-Module MSOnline -Verbose:$false 
-        #Establishes Online Services connection to Office 365 Management Layer.
-        Connect-MsolService -Credential $admincredentials
-    }
 
-    if ($Skype ){
-        $operation = "Connecting to Skype Online"
-        write-verbose $Operation
-        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-        $script:Prog_pct += $prog_step
+        if ($Skype ){
+            $operation = "Connecting to Skype Online"
+            write-verbose $Operation
+            Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step
                 
-        $mod = 'SkypeOnlineConnector'
-        if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
-            Write-warning "Required module: $mod is not installed or cannot be located. "
-            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-            return $false
-        }
-        #Imports the installed Skype for Business Online services module.
-        Import-Module SkypeOnlineConnector -Verbose:$false  -Force 
+            $mod = 'SkypeOnlineConnector'
+            if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+                Write-warning "Required module: $mod is not installed or cannot be located. "
+                Write-Host "Install the missing module using the -Install parameter; or restart PowerShell" -ForegroundColor Yellow
+                return $false
+            }
+            #Imports the installed Skype for Business Online services module.
+            Import-Module SkypeOnlineConnector -Verbose:$false  -Force 
 
-        #Remove prior  Session 
-        Get-PSSession -Name "Skype Online" -ea SilentlyContinue| Remove-PSSession 
+            #Remove prior  Session 
+            Get-PSSession -Name "Skype Online" -ea SilentlyContinue| Remove-PSSession 
 
-        #Create a Skype for Business Powershell session using defined credential.
-        $SkypeSession = New-CsOnlineSession -Credential $admincredentials -Verbose:$false
-        $SkypeSession.Name="Skype Online"
+            #Create a Skype for Business Powershell session using defined credential.
+            $SkypeSession = New-CsOnlineSession -Credential $admincredentials -Verbose:$false
+            $SkypeSession.Name="Skype Online"
 
-        #Imports Skype for Business session commands into your local Windows PowerShell session.
-        Import-PSSession -Session  $SkypeSession -AllowClobber -Verbose:$false | Out-Null
+            #Imports Skype for Business session commands into your local Windows PowerShell session.
+            Import-PSSession -Session  $SkypeSession -AllowClobber -Verbose:$false | Out-Null
 
-    }
-
-
-    If ($SharePoint) {
-        $operation = "Connecting to SharePoint Online"
-        write-verbose $Operation
-        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-        $script:Prog_pct += $prog_step        
-
-        if (!$AAD) {
-            Throw "AAD Connection required"
-        } else {
-            #get tenant name for AAD Connection
-            $tname= (Get-MsolDomain | ?{ $_.IsInitial -eq $true}).Name.Split(".")[0]
         }
 
-        $operation = "Connecting to SharePoint Online PnP"
-        write-verbose $Operation
-        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-        $script:Prog_pct += $prog_step        
 
-        $mod = 'Microsoft.Online.Sharepoint.PowerShell'
-        if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
-            Write-warning "Required module: $mod is not installed or cannot be located. "
-            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-            return $false
+        If ($SharePoint) {
+            $operation = "Connecting to SharePoint Online"
+            write-verbose $Operation
+            Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step        
+
+            if (!$AAD) {
+                Throw "AAD Connection required"
+            } else {
+                #get tenant name for AAD Connection
+                $tname= (Get-MsolDomain | ?{ $_.IsInitial -eq $true}).Name.Split(".")[0]
+            }
+            try {
+                $mod = 'Microsoft.Online.Sharepoint.PowerShell'
+                if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+                    Write-warning "Required module: $mod is not installed or cannot be located. "
+                    Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+                    return $false
+                }
+                #Imports SharePoint Online session commands into your local Windows PowerShell session.
+                Import-Module Microsoft.Online.Sharepoint.PowerShell -DisableNameChecking -Verbose:$false
+                #lookup the tenant name based on the intial domain for the tenant
+                Connect-SPOService -url https://$tname-admin.sharepoint.com -Credential $admincredentials          
+            }
+            catch {
+                Write-Warning "Unable to connect to SharePoint Online."
+            }
         }
-        #Imports SharePoint Online session commands into your local Windows PowerShell session.
-        Import-Module Microsoft.Online.Sharepoint.PowerShell -DisableNameChecking -Verbose:$false
-        #lookup the tenant name based on the intial domain for the tenant
-        Connect-SPOService -url https://$tname-admin.sharepoint.com -Credential $admincredentials
 
-        try { 
-            write-verbose "Connecting to SharePoint Online PNP"
-            $mod = 'OfficeDevPnP.PowerShell.V16.Commands'
+        If ($SharePointPNP) {
+
+            $operation = "Connecting to SharePoint Online PnP"
+            write-verbose $Operation
+            Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step        
+
+            if (!$AAD) {
+                Throw "AAD Connection required"
+            } else {
+                #get tenant name for AAD Connection
+                $tname= (Get-MsolDomain | ?{ $_.IsInitial -eq $true}).Name.Split(".")[0]
+            }
+
+            try { 
+                write-verbose "Connecting to SharePoint Online PNP"
+                $mod = 'OfficeDevPnP.PowerShell.V16.Commands'
+                if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
+                    Write-Warning "Required module: $mod is not installed or cannot be located. "
+                    Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+                    #return $false
+                }
+                import-Module OfficeDevPnP.PowerShell.V16.Commands -DisableNameChecking -Verbose:$false
+                Connect-SPOnline -Credential $admincredentials -url "https://$tname.sharepoint.com"
+            } catch {
+                Write-Warning "Unable to connect to SharePoint Online using the PnP PowerShell module"
+            }
+        }
+
+        if ($Exchange ) {
+            $operation = "Connecting to Exchange Online"
+            write-verbose $Operation
+            Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step        
+
+            #Remove prior  Session 
+            Get-PSSession -Name "Exchange Online" -ea SilentlyContinue| Remove-PSSession 
+
+            #Creates an Exchange Online session using defined credential.
+            $ExchangeSession = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "https://outlook.office365.com/powershell-liveid/" -Credential $admincredentials -Authentication "Basic" -AllowRedirection
+            $ExchangeSession.Name = "Exchange Online"
+            #This imports the Office 365 session into your active Shell.
+            Import-PSSession $ExchangeSession -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
+        }
+
+        if ($Compliance) {
+            $operation = "Connecting to the Unified Compliance Center"
+            write-verbose $Operation
+            Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step        
+            #Remove prior  Session 
+            Get-PSSession -Name "Compliance Center" -ea SilentlyContinue| Remove-PSSession 
+
+            $PSCompliance = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://ps.compliance.protection.outlook.com/powershell-liveid/ -Credential $AdminCredentials -Authentication Basic -AllowRedirection -WarningAction Ignore
+            $PSCompliance.Name = "Compliance Center"
+            Import-PSSession $PSCompliance -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
+        }
+        If ($AADRM) {
+            $operation = "Connecting to Azure Rights Management"
+            write-verbose $Operation
+            Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step        
+            #Azure RMS 
+            $mod = 'AADRM'
             if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                 Write-Warning "Required module: $mod is not installed or cannot be located. "
                 Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                #return $false
+                return $false
             }
-            import-Module OfficeDevPnP.PowerShell.V16.Commands -DisableNameChecking -Verbose:$false
-            Connect-SPOnline -Credential $admincredentials -url "https://$tname.sharepoint.com"
-        } catch {
-            Write-Warning "Unable to connect to SharePoint Online using the PnP PowerShell module"
+            import-module AADRM -Verbose:$false
+            Connect-AadrmService -Credential $admincredentials 
         }
     }
 
-    if ($Exchange ) {
-        $operation = "Connecting to Exchange Online"
-        write-verbose $Operation
-        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-        $script:Prog_pct += $prog_step        
-
-        #Remove prior  Session 
-        Get-PSSession -Name "Exchange Online" -ea SilentlyContinue| Remove-PSSession 
-
-        #Creates an Exchange Online session using defined credential.
-        $ExchangeSession = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "https://outlook.office365.com/powershell-liveid/" -Credential $admincredentials -Authentication "Basic" -AllowRedirection
-        $ExchangeSession.Name = "Exchange Online"
-        #This imports the Office 365 session into your active Shell.
-        Import-PSSession $ExchangeSession -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
-    }
-
-    if ($Compliance) {
-        $operation = "Connecting to the Unified Compliance Center"
-        write-verbose $Operation
-        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-        $script:Prog_pct += $prog_step        
-        #Remove prior  Session 
-        Get-PSSession -Name "Compliance Center" -ea SilentlyContinue| Remove-PSSession 
-
-        $PSCompliance = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://ps.compliance.protection.outlook.com/powershell-liveid/ -Credential $AdminCredentials -Authentication Basic -AllowRedirection -WarningAction Ignore
-        $PSCompliance.Name = "Compliance Center"
-        Import-PSSession $PSCompliance -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
-    }
-    If ($AADRM) {
-        $operation = "Connecting to Azure Rights Management"
-        write-verbose $Operation
-        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-        $script:Prog_pct += $prog_step        
-        #Azure RMS 
-        $mod = 'AADRM'
-        if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
-            Write-Warning "Required module: $mod is not installed or cannot be located. "
-            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-            return $false
-        }
-        import-module AADRM -Verbose:$false
-        Connect-AadrmService -Credential $admincredentials 
-    }
-}
-
-<#
-.Synopsis
-   import a .psd1 file from a url ,( Github) 
-.DESCRIPTION
-   import a .psd1 file from a url 
-   and perform a safe expansion using a number of predefined variables.
-#>
-function Import-DataFile
-{
-    param (
-        [Parameter(Mandatory)]
-        [string] $Url
-    )
-    try
-    {
-        #setup variables to use during configuration expansion
-        $CPU = $env:PROCESSOR_ARCHITECTURE
-        switch ($env:PROCESSOR_ARCHITECTURE)
-        {
-            'x86'   {$xcpu = 'x86' ; $bitness='32';}
-            'AMD64' {$xcpu = 'x64' ; $bitness='64'; }
-        }
-        $Filename = $URL.Split("/")[-1]
-        try {   wget -Uri $URL -OutFile "$env:TEMP\$Filename" } 
-        #failsafe if IE never been run 
-        catch { wget -Uri $URL -OutFile "$env:TEMP\$Filename" -UseBasicParsing  } 
-
-        $content = Get-Content -Path "$env:TEMP\$Filename" -Raw -ErrorAction Stop
-        Remove-Item "$env:TEMP\$Filename" -Force
-        $scriptBlock = [scriptblock]::Create($content)
-
-        # This list of approved cmdlets and variables is what is used when you import a module manifest
-        [string[]] $allowedCommands = @( 'ConvertFrom-Json', 'Join-Path', 'Write-Verbose', 'Write-Host' )
-        #list of pedefined variables that can be used
-        [string[]] $allowedVariables = @('language' ,'LangCountry', 'cpu','xcpu' , 'bitness' )
-        # This is the important line; it makes sure that your file is safe to run before you invoke it.
-        # This protects you from injection attacks / etc, if someone has placed malicious content into
-        # the data file.
-        $scriptBlock.CheckRestrictedLanguage($allowedCommands, $allowedVariables, $true)
-        #
-        return & $scriptBlock
-    }
-    catch
-    {
-        throw
-    } 
-}
-
-
-If ( $PsCmdlet.ParameterSetName -eq "Install") {
-    Write-Host -f Yellow "Starting Installation"
-    
-    #always perform module test after installation 
-    $test = $true
-# Get the location of the downloads folder 
-# Ref : http://stackoverflow.com/questions/25049875/getting-any-special-folder-path-in-powershell-using-folder-guid 
-Add-Type @"
-    using System;
-    using System.Runtime.InteropServices;
-
-    public static class KnownFolder
-    {
-        public static readonly Guid Documents = new Guid( "FDD39AD0-238F-46AF-ADB4-6C85480369C7" );
-        public static readonly Guid Downloads = new Guid( "374DE290-123F-4565-9164-39C4925E467B" );
-    }
-    public class shell32
-    {
-        [DllImport("shell32.dll")]
-        private static extern int SHGetKnownFolderPath(
-                [MarshalAs(UnmanagedType.LPStruct)] 
-                Guid rfid,
-                uint dwFlags,
-                IntPtr hToken,
-                out IntPtr pszPath
-            );
-            public static string GetKnownFolderPath(Guid rfid)
-            {
-            IntPtr pszPath;
-            if (SHGetKnownFolderPath(rfid, 0, IntPtr.Zero, out pszPath) != 0)
-                return ""; // add whatever error handling you fancy
-            string path = Marshal.PtrToStringUni(pszPath);
-            Marshal.FreeCoTaskMem(pszPath);
-            return path;
-            }
-    }
-"@ 
-    #Lookup downloads location
-    if ($Folder -eq $null ) {$folder = [shell32]::GetKnownFolderPath([KnownFolder]::Downloads) }
-    write-verbose "Download folder : $folder"
-
-    $operation = "Load the required module information from the configuration file"
-    write-verbose $Operation
-    Write-Progress "Install External PowerShell modules to connect to Office 365" `
-        -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-
-    #load the required modules from a configuration file on GitHub
-    $Components = Import-DataFile -url 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/RequiredModuleInfo.psd1' 
-    
-    #figure out the progress rate 
-    $script:Prog_step = 100 / $components.AdminComponents.Count
-    $script:Prog_pct = $script:Prog_step
-
-#>
-    # (Get-Module aadrm -ListAvailable).Version
-    <# use the below in order to update relevant information 
-    Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | sort -Property DisplayName | select PSChildName, DisplayName, Publisher, DisplayVersion
+    <#
+    .Synopsis
+       import a .psd1 file from a url ,( Github) 
+    .DESCRIPTION
+       import a .psd1 file from a url 
+       and perform a safe expansion using a number of predefined variables.
     #>
-    foreach ($c  in $Components.AdminComponents) {
-        $operation = "Install $($C.Name)"
+    function Import-DataFile
+    {
+        param (
+            [Parameter(Mandatory)]
+            [string] $Url
+        )
+        try
+        {
+            #setup variables to use during configuration expansion
+            $CPU = $env:PROCESSOR_ARCHITECTURE
+            switch ($env:PROCESSOR_ARCHITECTURE)
+            {
+                'x86'   {$xcpu = 'x86' ; $bitness='32';}
+                'AMD64' {$xcpu = 'x64' ; $bitness='64'; }
+            }
+            $Filename = $URL.Split("/")[-1]
+            try {   wget -Uri $URL -OutFile "$env:TEMP\$Filename" } 
+            #failsafe if IE never been run 
+            catch { wget -Uri $URL -OutFile "$env:TEMP\$Filename" -UseBasicParsing  } 
+
+            $content = Get-Content -Path "$env:TEMP\$Filename" -Raw -ErrorAction Stop
+            Remove-Item "$env:TEMP\$Filename" -Force
+            $scriptBlock = [scriptblock]::Create($content)
+
+            # This list of approved cmdlets and variables is what is used when you import a module manifest
+            [string[]] $allowedCommands = @( 'ConvertFrom-Json', 'Join-Path', 'Write-Verbose', 'Write-Host' )
+            #list of pedefined variables that can be used
+            [string[]] $allowedVariables = @('language' ,'LangCountry', 'cpu','xcpu' , 'bitness' )
+            # This is the important line; it makes sure that your file is safe to run before you invoke it.
+            # This protects you from injection attacks / etc, if someone has placed malicious content into
+            # the data file.
+            $scriptBlock.CheckRestrictedLanguage($allowedCommands, $allowedVariables, $true)
+            #
+            return & $scriptBlock
+        }
+        catch
+        {
+            throw
+        } 
+    }
+
+
+    If ( $PsCmdlet.ParameterSetName -eq "Install") {
+        Write-Host -f Yellow "Starting Installation"
+    
+        #always perform module test after installation 
+        $test = $true
+    # Get the location of the downloads folder 
+    # Ref : http://stackoverflow.com/questions/25049875/getting-any-special-folder-path-in-powershell-using-folder-guid 
+    Add-Type @"
+        using System;
+        using System.Runtime.InteropServices;
+
+        public static class KnownFolder
+        {
+            public static readonly Guid Documents = new Guid( "FDD39AD0-238F-46AF-ADB4-6C85480369C7" );
+            public static readonly Guid Downloads = new Guid( "374DE290-123F-4565-9164-39C4925E467B" );
+        }
+        public class shell32
+        {
+            [DllImport("shell32.dll")]
+            private static extern int SHGetKnownFolderPath(
+                    [MarshalAs(UnmanagedType.LPStruct)] 
+                    Guid rfid,
+                    uint dwFlags,
+                    IntPtr hToken,
+                    out IntPtr pszPath
+                );
+                public static string GetKnownFolderPath(Guid rfid)
+                {
+                IntPtr pszPath;
+                if (SHGetKnownFolderPath(rfid, 0, IntPtr.Zero, out pszPath) != 0)
+                    return ""; // add whatever error handling you fancy
+                string path = Marshal.PtrToStringUni(pszPath);
+                Marshal.FreeCoTaskMem(pszPath);
+                return path;
+                }
+        }
+"@ 
+        #Lookup downloads location
+        if ($Folder -eq $null ) {$folder = [shell32]::GetKnownFolderPath([KnownFolder]::Downloads) }
+        write-verbose "Download folder : $folder"
+
+        $operation = "Load the required module information from the configuration file"
         write-verbose $Operation
         Write-Progress "Install External PowerShell modules to connect to Office 365" `
             -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-        $script:Prog_pct += $prog_step 
 
-        if ($c.Preview -ieq "Yes" -and $InstallPreview -eq $false) {
-                write-host -f Gray "Skip Preview component : $($c.Name)"
-                continue; 
-        }
-        #IF OS Major Specified , and if the current OS Matches the specified OS
-        if ($c.OS) { 
-            if ( ($c.OS).Split(",") -notcontains [System.Environment]::OSVersion.Version.Major) { 
-                write-host -f Gray "OS mismatch, Skip component : $($c.Name)"
-                continue; 
-            } 
-        }
+        #load the required modules from a configuration file on GitHub
+        $Components = Import-DataFile -url 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/RequiredModuleInfo.psd1' 
+    
+        #figure out the progress rate 
+        $script:Prog_step = 100 / $components.AdminComponents.Count
+        $script:Prog_pct = $script:Prog_step
 
-        switch ($c.Type.ToUpper() )
-        {
-            {$_ -in "EXE","MSI"} {
-                Write-Verbose "EXE or MSI package"
-                $AppInfo = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($c.ID)" -ErrorAction SilentlyContinue
-                $Installed = $false;
-                if ($AppInfo ) { 
-                    $Installed = $appInfo.Displayname -ne $null
-                }
+    #>
+        # (Get-Module aadrm -ListAvailable).Version
+        <# use the below in order to update relevant information 
+        Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | sort -Property DisplayName | select PSChildName, DisplayName, Publisher, DisplayVersion
+        #>
+        foreach ($c  in $Components.AdminComponents) {
+            $operation = "Install $($C.Name)"
+            write-verbose $Operation
+            Write-Progress "Install External PowerShell modules to connect to Office 365" `
+                -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step 
+
+            if ($c.Preview -ieq "Yes" -and $InstallPreview -eq $false) {
+                    write-host -f Gray "Skip Preview component : $($c.Name)"
+                    continue; 
+            }
+            #IF OS Major Specified , and if the current OS Matches the specified OS
+            if ($c.OS) { 
+                if ( ($c.OS).Split(",") -notcontains [System.Environment]::OSVersion.Version.Major) { 
+                    write-host -f Gray "OS mismatch, Skip component : $($c.Name)"
+                    continue; 
+                } 
+            }
+
+            switch ($c.Type.ToUpper() )
+            {
+                {$_ -in "EXE","MSI"} {
+                    Write-Verbose "EXE or MSI package"
+                    $AppInfo = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($c.ID)" -ErrorAction SilentlyContinue
+                    $Installed = $false;
+                    if ($AppInfo ) { 
+                        $Installed = $appInfo.Displayname -ne $null
+                    }
                 
-                if (-not $Installed -or $force) {
-                    # Filename
-                    $file = Split-Path $c.Source -Leaf
-                    #path in downloads 
-                    $msi = join-path $folder $file
-                    #remove existing item prior to Downloading 
-                    Remove-Item $msi -Force -ea SilentlyContinue
-                    try { 
-                        #download it 
-                        Write-Verbose "Download package"
-                        Invoke-WebRequest $c.Source -OutFile $msi
-                        if ( Test-Path $msi ) { 
-                            $Sign = Get-AuthenticodeSignature $msi
-                            if ( $Sign.Status -eq 'Valid' -and $sign.SignerCertificate.DnsNameList[0].Unicode -eq 'Microsoft Corporation' ) {
-                                if ($force) { 
-                                    #de-install before re-install
-                                    write-host -ForegroundColor Yellow "Removing current $($c.Type) package"
-                                    Start-Process -FilePath "msiexec" -ArgumentList "/uninstall $($c.ID) " -Wait
+                    if (-not $Installed -or $force) {
+                        # Filename
+                        $file = Split-Path $c.Source -Leaf
+                        #path in downloads 
+                        $msi = join-path $folder $file
+                        #remove existing item prior to Downloading 
+                        Remove-Item $msi -Force -ea SilentlyContinue
+                        try { 
+                            #download it 
+                            Write-Verbose "Download package"
+                            Invoke-WebRequest $c.Source -OutFile $msi
+                            if ( Test-Path $msi ) { 
+                                $Sign = Get-AuthenticodeSignature $msi
+                                if ( $Sign.Status -eq 'Valid' -and $sign.SignerCertificate.DnsNameList[0].Unicode -eq 'Microsoft Corporation' ) {
+                                    if ($force) { 
+                                        #de-install before re-install
+                                        write-host -ForegroundColor Yellow "Removing current $($c.Type) package"
+                                        Start-Process -FilePath "msiexec" -ArgumentList "/uninstall $($c.ID) " -Wait
+                                    }
+                                    try { 
+                                        if ($c.Type -ieq "MSI" ) {
+                                            Write-Verbose "Install MSI package : $msi"
+                                            Start-Process -FilePath "msiexec" -ArgumentList "/package $msi /passive" -Wait
+                                        } else {
+                                            $Options = "/Passive"
+                                            if ($c.Setup ) { $Options = $c.SetupOptions }
+                                            Write-Verbose "Install EXE package : $msi $options"                                        
+                                            Start-Process -FilePath $MSI -ArgumentList $options -Wait
+                                        }
+
+                                            $AppInfo = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($c.ID)" -ErrorAction SilentlyContinue
+                                            Write-Host $c.Name "Version :" $AppInfo.DisplayVersion " was installed" -f Green
+                                    } catch {
+                                        Write-warning "$($c.Name) could not be installed"
+                                        #Open in browser
+                                        if (-not [string]::IsNullOrEmpty($c.Web)){
+                                            Start-Process $c.Web
+                                        }
+                                    } 
                                 }
-                                try { 
-                                    if ($c.Type -ieq "MSI" ) {
-                                        Write-Verbose "Install MSI package : $msi"
-                                        Start-Process -FilePath "msiexec" -ArgumentList "/package $msi /passive" -Wait
-                                    } else {
-                                        $Options = "/Passive"
-                                        if ($c.Setup ) { $Options = $c.SetupOptions }
-                                        Write-Verbose "Install EXE package : $msi $options"                                        
-                                        Start-Process -FilePath $MSI -ArgumentList $options -Wait
-                                    }
-
-                                        $AppInfo = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($c.ID)" -ErrorAction SilentlyContinue
-                                        Write-Host $c.Name "Version :" $AppInfo.DisplayVersion " was installed" -f Green
-                                } catch {
-                                    Write-warning "$($c.Name) could not be installed"
-                                    #Open in browser
-                                    if (-not [string]::IsNullOrEmpty($c.Web)){
-                                        Start-Process $c.Web
-                                    }
-                                } 
                             }
+                        } catch {
+                            Write-Warning "could not install: $($c.Name)"
                         }
-                    } catch {
-                        Write-Warning "could not install: $($c.Name)"
+                    } 
+                    else { 
+                        Write-Host $c.Name "Version :" $AppInfo.DisplayVersion " is already installed"
                     }
-                } 
-                else { 
-                    Write-Host $c.Name "Version :" $AppInfo.DisplayVersion " is already installed"
                 }
-            }
-            "MODULE" {
-                # Add check for PS5 / WMF 5 
-                if (Get-Command install-module) { 
-                    #check for installed version of this module 
-                    $Current  = Get-Module -Name $c.Module -ListAvailable | sort -Property Version | select -First 1
-                    $Source = Find-Module -Name $c.Module -Repository $c.Source -Verbose:$false
-                    if ( $Current -eq $null ) {
-                        write-verbose "Preparing to install module $($c.Module)"
-                        #Not yet installed , find source 
-                        #if not installed or newer version avaialble
-                        if( $Source -and $Current -eq $null -or  ($Source.Version -GT $Current.Version) ) {
-                            #install it 
-                            $IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator") 
-                            #Check Admin Perms 
-                            if (-not $IsAdmin) {
-                                Write-Verbose "Start PS elevated to admin to run the install"
-                                Start-Process "$psHome\powershell.exe" -Verb Runas -ArgumentList "-Command Install-Module -Name $($c.Module) -Repository $($c.Source)" 
+                "MODULE" {
+                    # Add check for PS5 / WMF 5 
+                    if (Get-Command install-module) { 
+                        #check for installed version of this module 
+                        $Current  = Get-Module -Name $c.Module -ListAvailable | sort -Property Version | select -First 1
+                        $Source = Find-Module -Name $c.Module -Repository $c.Source -Verbose:$false
+                        if ( $Current -eq $null ) {
+                            write-verbose "Preparing to install module $($c.Module)"
+                            #Not yet installed , find source 
+                            #if not installed or newer version avaialble
+                            if( $Source -and $Current -eq $null -or  ($Source.Version -GT $Current.Version) ) {
+                                #install it 
+                                $IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator") 
+                                #Check Admin Perms 
+                                if (-not $IsAdmin) {
+                                    Write-Verbose "Start PS elevated to admin to run the install"
+                                    Start-Process "$psHome\powershell.exe" -Verb Runas -ArgumentList "-Command Install-Module -Name $($c.Module) -Repository $($c.Source)" 
 
+                                } else {
+                                    Install-Module -InputObject $source
+                                }
+                                $Now = Get-Module $c.Module -ListAvailable -Verbose:$false
+                                if ($now){
+                                    Write-Host "Installed $($now.Name) version : $($Now.Version)"
+                                }
                             } else {
-                                Install-Module -InputObject $source
-                            }
-                            $Now = Get-Module $c.Module -ListAvailable -Verbose:$false
-                            if ($now){
-                                Write-Host "Installed $($now.Name) version : $($Now.Version)"
-                            }
+                                #Could not  be found 
+                                Write-warning  "The Module $($c.Name) Could not be located"
+                                #Open in browser
+                                if (-not [string]::IsNullOrEmpty($c.Web)){
+                                    Start-Process $c.Web
+                                }
+                            } 
                         } else {
-                            #Could not  be found 
-                            Write-warning  "The Module $($c.Name) Could not be located"
-                            #Open in browser
-                            if (-not [string]::IsNullOrEmpty($c.Web)){
-                                Start-Process $c.Web
+                            #version already installed
+                            if ($Source.Version -gt $Current.Version -or $force ) {
+                                write-verbose "Updating Module $($c.Module)"
+                                if (-not $IsAdmin) {
+                                    Write-Verbose "Start PS elevated to admin to run the install"
+                                    Start-Process "$psHome\powershell.exe" -Verb Runas -ArgumentList "-Command update-Module -Name $($c.Module)" 
+                                } else {
+                                    update-Module -InputObject $source -Force:$force
+                                }
                             }
-                        } 
-                    } else {
-                        #version already installed
-                        if ($Source.Version -gt $Current.Version -or $force ) {
-                            write-verbose "Updating Module $($c.Module)"
-                            if (-not $IsAdmin) {
-                                Write-Verbose "Start PS elevated to admin to run the install"
-                                Start-Process "$psHome\powershell.exe" -Verb Runas -ArgumentList "-Command update-Module -Name $($c.Module)" 
-                            } else {
-                                update-Module -InputObject $source -Force:$force
+                            else 
+                            {
+                                Write-verbose "Version : $($Current.Version) of $($c.Name) is already installed"
                             }
-                        }
-                        else 
-                        {
-                            Write-verbose "Version : $($Current.Version) of $($c.Name) is already installed"
-                        }
-                        $NOW  = Get-Module $c.Module -ListAvailable
-                        Write-Host "Version : $($NOW.Version) of $($c.Name) was newly installed"
+                            $NOW  = Get-Module $c.Module -ListAvailable
+                            Write-Host "Version : $($NOW.Version) of $($c.Name) was newly installed"
                                        
-                    }
-                } 
-                else 
-                { 
-                    #No PS5 / WMF 5
-                    Write-warning  "The Module $($c.Name) cannot be installed automatically. Please install manually or install WMF 5 (preview)"
-                    #Open in browser
-                    if (-not [string]::IsNullOrEmpty($c.Web)){
-                        Start-Process $c.Web
+                        }
+                    } 
+                    else 
+                    { 
+                        #No PS5 / WMF 5
+                        Write-warning  "The Module $($c.Name) cannot be installed automatically. Please install manually or install WMF 5 (preview)"
+                        #Open in browser
+                        if (-not [string]::IsNullOrEmpty($c.Web)){
+                            Start-Process $c.Web
+                        }
                     }
                 }
+            default { Write-Warning "Unknown component type"}
             }
-        default { Write-Warning "Unknown component type"}
-        }
-    }
-}
-
-#test is both a parameterset as well as an option for installation
-if ($test )  {
-    Write-Host -f Yellow "Starting Test"    
-    $script:Prog_pct = 0
-    $script:Prog_step = 100 /6
-
-    $ServiceName ='Microsoft Online Services Sign-in Assistant'
-
-    $operation = $ServiceName
-    write-verbose $Operation
-    Write-Progress "Test and validate External powershell modules to connect to Office 365" `
-        -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
-    $script:Prog_pct += $prog_step 
-
-    Write-Host "Validating Service: $ServiceName" -NoNewline
-    $SignInAssistant = Get-Service -Name msoidsvc
-    if ( $SignInAssistant -eq $null )
-    {
-        Write-Host 
-        Write-Warning "Service : '$ServiceName' is not installed"
-    } else {
-        if ($SignInAssistant.Status -ine "Running" ) {
-            Write-Host 
-            Write-Warning "Service '$ServiceName' is not running"
-            Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-        }
-        else {
-            Write-Host " - OK" -ForegroundColor Green
         }
     }
 
-    #test if all Local modules are installed correctly 
-    foreach ($module in @( "MSonline","SkypeOnlineConnector","Microsoft.Online.Sharepoint.PowerShell","OfficeDevPnP.PowerShell.V16.Commands","AADRM" ) ) {
-        $operation = $Module
+    #test is both a parameterset as well as an option for installation
+    if ($test )  {
+        Write-Host -f Yellow "Starting Test"    
+        $script:Prog_pct = 0
+        $script:Prog_step = 100 /6
+
+        $ServiceName ='Microsoft Online Services Sign-in Assistant'
+
+        $operation = $ServiceName
         write-verbose $Operation
         Write-Progress "Test and validate External powershell modules to connect to Office 365" `
             -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
         $script:Prog_pct += $prog_step 
 
-        Write-Host "Validating Module : $Module" -NoNewline
-        $M = Get-Module -Name $module -ListAvailable
-        if ($m -eq $null) {
+        Write-Host "Validating Service: $ServiceName" -NoNewline
+        $SignInAssistant = Get-Service -Name msoidsvc
+        if ( $SignInAssistant -eq $null )
+        {
             Write-Host 
-            Write-warning "Module '$Module' is not installed or cannot be located."
-            Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
-
+            Write-Warning "Service : '$ServiceName' is not installed"
         } else {
-            Try {
-                Import-Module -Name $module -Force -DisableNameChecking
-                remove-module -Name $module -Force
-                Write-Host " - OK" -ForegroundColor Green
-            } catch   {
+            if ($SignInAssistant.Status -ine "Running" ) {
                 Write-Host 
-                Write-warning "Module '$Module' could not be Imported."
+                Write-Warning "Service '$ServiceName' is not running"
+                Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+            }
+            else {
+                Write-Host " - OK" -ForegroundColor Green
+            }
+        }
+
+        #test if all Local modules are installed correctly 
+        foreach ($module in @( "MSonline","SkypeOnlineConnector","Microsoft.Online.Sharepoint.PowerShell","OfficeDevPnP.PowerShell.V16.Commands","AADRM" ) ) {
+            $operation = $Module
+            write-verbose $Operation
+            Write-Progress "Test and validate External powershell modules to connect to Office 365" `
+                -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+            $script:Prog_pct += $prog_step 
+
+            Write-Host "Validating Module : $Module" -NoNewline
+            $M = Get-Module -Name $module -ListAvailable
+            if ($m -eq $null) {
+                Write-Host 
+                Write-warning "Module '$Module' is not installed or cannot be located."
                 Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
+
+            } else {
+                Try {
+                    Import-Module -Name $module -Force -DisableNameChecking
+                    remove-module -Name $module -Force
+                    Write-Host " - OK" -ForegroundColor Green
+                } catch   {
+                    Write-Host 
+                    Write-warning "Module '$Module' could not be Imported."
+                    Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
+                }
             }
         }
     }
 }
-
-
