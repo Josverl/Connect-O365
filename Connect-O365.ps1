@@ -9,14 +9,14 @@
 .LICENSEURI 
 .PROJECTURI https://github.com/Josverl/Connect-O365
 .ICONURI https://raw.githubusercontent.com/Josverl/Connect-O365/master/Connect-O365.png
-.EXTERNALMODULEDEPENDENCIES MSOnline, Microsoft.Online.SharePoint.PowerShell, AADRM, OfficeDevPnP.PowerShell.V16.Commands
+.EXTERNALMODULEDEPENDENCIES MSOnline, Microsoft.Online.SharePoint.PowerShell, AADRM, OfficeDevPnP.PowerShell.V16.Commands, CredentialManager
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
-V1.6.4  Add autocompletion for saved accounts
+V1.6.4  Add autocompletion for saved accountsand credential manager, change default for -AAD, imporve connection error checks
 V1.6.3  Add progress bars
 V1.6.2  Resolve multiple Aliases per parameter bug on some PS flavors, 
-V1.6.1  add test for Sign-in Assistant,Add pro-acive check for modules during administration.
+V1.6.1  Add test for Sign-in Assistant,Add pro-acive check for modules during administration.
 V1.6.0  Publish to Github
 v1.5.9  update install OS version match logic to use [System.Environment]::OSVersion.Version, correct DefaultParameterSetName=”Admin", Add -test option to check correct installation
 V1.5.8  Seperate configuration download info from script, Retrieve Module info from github.
@@ -51,10 +51,13 @@ V1.1    Initial publication to scriptcenter
 
 .EXAMPLE
    #Connect to MSOnline, and store securly store the credentials 
-   connect-O365 -Account 'admin@contoso.com' -Persist:$false 
+   connect-O365 -Account 'admin@contoso.com' -Persist
 .EXAMPLE
+   #Update the password for the admin account 
+   connect-O365 -Account 'admin@contoso.com' -Persist
 
-   connect-O365 -Account 'admin@contoso.com'   
+.EXAMPLE
+   connect-O365 -Account 'admin@contoso.com' -Persist   
 
    #retrieve credentials for use in other cmdlets
    $Creds = Get-myCreds 'admin@contoso.com'
@@ -167,59 +170,171 @@ Param
     [switch]$Test = $false, 
 
     #Force asking for, and optionally force the Perstistance of the credentials.
-    [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+#   [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
     [switch]$Force = $false
 )
 
 DynamicParam {
-    if ($PSVersionTable.PSVersion -ge 5.0.0.0) {
+    if ($PSVersionTable.PSVersion.Major -ge 5) {
         Register-ArgumentCompleter  -ParameterName "account" -ScriptBlock { 
-             # Generate and set the CompletionSet
-             #Types : DynamicKeyword / Property story / ProviderItem
-             $arrSet = Get-ChildItem -Path "$env:USERPROFILE\Creds" 
-             $arrSet | ForEach-Object {
+            # Generate and set the CompletionSet
+            #Types : DynamicKeyword / Property story / ProviderItem
+
+            #Find the credentials stored in the userprofile creds folder 
+            $arrSet = Get-ChildItem -Path "$env:USERPROFILE\Creds" 
+            $arrSet | ForEach-Object {
+                # Completion text , ListItem text, Resulttype, Tooltip
                 New-Object System.Management.Automation.CompletionResult $_.BaseName, $_.BaseName, 'DynamicKeyword', $_.FullName
-             }
+            }
+            #check if the credentialmanager module is installed 
+            if (get-module credentialmanager) {
+                #Find the credentials stored in the credential manager
+                $credentials = Get-StoredCredential -Type GENERIC -AsPsCredential:$false 
+                $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment 
+                #now create the list               
+                $credentials| ForEach-Object {
+                    # Completion text , ListItem text, Resulttype, Tooltip
+                    if ($_.Comment -ne $null ) {$TTIP = $_.Comment } else { $TTIP = $_.Targetname}
+                    New-Object System.Management.Automation.CompletionResult $_.UserName, $_.Username, 'History', $TTIP
+                }
+            }
         }
     }
 }
-
 begin {
-
+    <#
+    .Synopsis
+       Retrieve credentials using the UI and store these in a file in the userprofile\creds folder
+       the credentials are also returned.
+    .EXAMPLE
+       Store-MyCreds -UserName Admin@contoso.com
+    #>
+    $script:MSG_Cred = 'Please enter the Tenant Admin or Service Admin password'
+    $script:MSG_CredCancel = 'No password entered or user canceled'
     function global:Store-myCreds ($username){
-        $Credential = Get-Credential -Credential $username
-        $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
-        MkDir "$env:USERPROFILE\Creds" -ea 0 | Out-Null
-        $Credential.Password | ConvertFrom-SecureString | Set-Content $store
-        Write-Verbose "Saved credentials to $store"
+        $Credential = Get-Credential -UserName $username -Message $Script:MSG_Cred
+        if ($Credential) { 
+            $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
+            MkDir "$env:USERPROFILE\Creds" -ea 0 | Out-Null
+            $Credential.Password | ConvertFrom-SecureString | Set-Content $store
+            Write-Verbose "Saved credentials to $store"
+        } else {
+            write-warning $script:MSG_CredCancel
+        }    
         return $Credential 
      }
-
-    function global:Get-myCreds ($UserName , [switch]$Persist, [switch]$Force=$false){
+    
+    <#
+    .Synopsis
+       Test if credentials for a specific username are stored in the \creds folder
+    .EXAMPLE
+       if ( Test-MyCreds -UserName Admin@contoso.com ) { "credentials found" }
+    #>
+    function script:Test-myCreds {
+    param( [string]$UserName )
         $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
-        if ( (Test-Path $store) -AND $Force -eq $false ) {
-            #use a stored password if found , unless -force is used to ask for and store a new password
+        return (Test-Path $store)
+    }
+    <#
+    .Synopsis
+       retrieve credentials 
+       -Persist indicates that the credentials should be saved 
+       -Force   indicates that the password should be re-entered by the user 
+    .EXAMPLE
+       # retrieve the stored credentials, if not present just prompt for the password 
+       Get-MyCreds -UserName Admin@contoso.com
+   
+    .EXAMPLE
+       # store the credentials for future re-use, overwrites any existing credentials
+       Get-MyCreds -UserName Admin@contoso.com -persist
+
+    #>
+    function global:Get-myCreds ($UserName , [switch]$Persist ){
+        $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
+        if ( (Test-Path $store) -AND  $Persist -eq $false  ) {
+            #use a stored password if found , unless -persist/-force is used to ask for and store a new password
             Write-Verbose "Retrieved credentials from $store"
             $Password = Get-Content $store | ConvertTo-SecureString
             $Credential = New-Object System.Management.Automation.PsCredential($UserName,$Password)
             return $Credential
         } else {
             if ($persist -and -not [string]::IsNullOrEmpty($UserName)) {
+                WRITE-VERBOSE 'Ask and store new credentials'
                 $admincredentials  = Store-myCreds $UserName
                 return $admincredentials
             } else {
+                WRITE-VERBOSE 'Ask for credentials'
                 return Get-Credential -Credential $username
             }
         }
      }
 
+    <#
+    .Synopsis
+       Retrieves credentials that are stored either in the \creds folder, or in the windows storedcredentials 
+       Windows stored credentials depend on an external module to be in installed (CredentialManager) 
+    .EXAMPLE
+        retrieve-credentials -account admin@contso.com 
+    .EXAMPLE
+        retrieve-credentials -account admin@contso.com -persist
+    .EXAMPLE
+        #retrieve a credentian using a alias from the credential manager
+        retrieve-credentials -account Production
+
+    #>
+    function global:retrieve-credentials {
+        param (
+            [string]$Account,
+            [switch]$Persist
+        )
+        $admincredentials = $null
+        #if credentials are stored in the filestore 
+        if (test-myCreds $account) {
+            write-verbose 'Find credentials from credential folder'
+            $admincredentials = Get-myCreds $account -Persist:$Persist 
+        } else { 
+            write-verbose 'Find credentials stored in the credential manager'
+            #Find the credentials stored in the credential manager
+            $credentials = Get-StoredCredential -Type GENERIC -AsPsCredential:$false 
+            #work around pipeline constraints in get-stored credentials v1.0/1.1
+            $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment
+            #check match on target name
+            $stored = $credentials | where {$_.Targetname -ieq "LegacyGeneric:target=$account"} | select -First 1
+            #otherwise check on username
+            if ($stored -eq $null) {
+                write-verbose 'Find credentials based on user name'
+                $stored = $credentials | where {$_.UserName-ieq $account} | select -First 1
+            }
+            if ($persist) {
+                write-verbose 'Asking for a new password'
+                #if -Persist is specified we need to ask for a new password and update the stored password
+                if ($stored) { $name= $stored.Username } else { $name=$account}
+                $newCred = Get-Credential -UserName $name -Message $Script:MSG_Cred
+                if ($newCred -eq $null) {
+                    write-warning $script:MSG_CredCancel
+                } else {
+                    if ($stored) {
+                        write-verbose 'Update existing Stored Credential'
+                        $stored = New-StoredCredential -Comment "Connect-O365" -Password $newCred.GetNetworkCredential().Password -Persist ENTERPRISE -Target $stored.TargetName -Type GENERIC -UserName $newcred.UserName
+                    } else {
+                        write-verbose 'Create New Stored Credential'
+                        $stored = New-StoredCredential -Comment "Connect-O365" -Password $newCred.GetNetworkCredential().Password -Persist ENTERPRISE -Target $Account -Type GENERIC -UserName $newcred.UserName
+                    }
+                }
+            }
+            #If a stored cred was found
+            if ($stored -ne $null) {
+                $admincredentials = Get-StoredCredential -Target $stored.Targetname -Type 'GENERIC'
+            }        
+        }
+        return $admincredentials
+    }
     # Verbose log of the input parameters
     Write-Verbose -Message 'Connect-O365 Parameters :'
     $PSBoundParameters.GetEnumerator() | ForEach-Object { Write-Verbose -Message "$($PSItem)" }
 
-    #Parameter logic for explicit ans implicit -All 
-
+    #Parameter logic for explicit and implicit -All 
     If ( $PsCmdlet.ParameterSetName -ieq "Close" ) 
     {
         if ( $all -eq $false -and  $exchange -eq $false -and $skype -eq $false -and $Compliance -eq $false  -and $SharePoint -eq $false -and $AADRM -eq $false) {
@@ -230,13 +345,11 @@ begin {
     If ( $PsCmdlet.ParameterSetName -iin "Close","Admin" ) 
     {
         if ( -not ( $Exchange -or $Skype -or $Compliance -or $SharePoint -or $SharePointPNP -or $AADRM ))
-        { $AAD = $true } # default to AAD Only
-
+            { $AAD = $true } # default to AAD Only
         if ($SharePoint -or $SharePointPNP){
             ## AAD is used to find the URLS and the tenant name for SharePoint to connect to 
             $AAD = $true
         }
-    
         if ($all) {
             $AAD = $true
             $Exchange = $true
@@ -246,7 +359,6 @@ begin {
             $SharePointPNP = $true
             $AADRM = $TRUE
         } 
-    
     }
     # Start and step size for the progress baks 
     $script:Prog_pct = 0 
@@ -276,7 +388,6 @@ Process{
                 $script:Prog_pct += $prog_step
                 write-verbose "- Skype Online"
                 Get-PSSession -Name "Skype Online" -ea SilentlyContinue| Remove-PSSession }
-    
             if ($SharePoint) { 
                 if ( get-module Microsoft.Online.SharePoint.Powershell )
                 {
@@ -322,11 +433,13 @@ Process{
         Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
         $script:Prog_pct += $prog_step        
     
-        $admincredentials = Get-myCreds $account -Persist:$Persist -Force:$Force
+        #retrieve admin credentials for filestore and secure store 
+        $admincredentials = retrieve-credentials -account $account -Persist:$persist
         if ($admincredentials -eq $null){ throw "A valid Tenant Admin Account is required." } 
+        Write-Host -f Cyan "UserName $($admincredentials.UserName)"
 
         if ( $AAD) {
-            $operation = "Connecting to Azure AD"
+            $operation = "Azure AD"
             write-verbose $Operation
             Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
             $script:Prog_pct += $prog_step        
@@ -340,11 +453,14 @@ Process{
             #Imports the installed Azure Active Directory module.
             Import-Module MSOnline -Verbose:$false 
             #Establishes Online Services connection to Office 365 Management Layer.
-            Connect-MsolService -Credential $admincredentials
+            try { 
+                Connect-MsolService -Credential $admincredentials
+                Write-Host -f Green $operation
+            } finally {}
         }
 
         if ($Skype ){
-            $operation = "Connecting to Skype Online"
+            $operation = "Skype Online"
             write-verbose $Operation
             Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
             $script:Prog_pct += $prog_step
@@ -362,17 +478,25 @@ Process{
             Get-PSSession -Name "Skype Online" -ea SilentlyContinue| Remove-PSSession 
 
             #Create a Skype for Business Powershell session using defined credential.
-            $SkypeSession = New-CsOnlineSession -Credential $admincredentials -Verbose:$false
-            $SkypeSession.Name="Skype Online"
-
-            #Imports Skype for Business session commands into your local Windows PowerShell session.
-            Import-PSSession -Session  $SkypeSession -AllowClobber -Verbose:$false | Out-Null
+            Try { 
+                $SkypeSession = New-CsOnlineSession -Credential $admincredentials -Verbose:$false -ErrorAction SilentlyContinue -ErrorVariable ConnectError
+                if ($SkypeSession) {
+                    $SkypeSession.Name="Skype Online"
+                    #Imports Skype for Business session commands into your local Windows PowerShell session.
+                    Import-PSSession -Session  $SkypeSession -AllowClobber -Verbose:$false | Out-Null
+                    Write-Host -f Green $operation
+                } else {
+                    Write-Warning $ConnectError[0].Message
+                }
+            } catch {
+                Write-Warning $ConnectError[0].Message
+            }
 
         }
 
 
         If ($SharePoint) {
-            $operation = "Connecting to SharePoint Online"
+            $operation = "SharePoint Online"
             write-verbose $Operation
             Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
             $script:Prog_pct += $prog_step        
@@ -393,7 +517,8 @@ Process{
                 #Imports SharePoint Online session commands into your local Windows PowerShell session.
                 Import-Module Microsoft.Online.Sharepoint.PowerShell -DisableNameChecking -Verbose:$false
                 #lookup the tenant name based on the intial domain for the tenant
-                Connect-SPOService -url https://$tname-admin.sharepoint.com -Credential $admincredentials          
+                Connect-SPOService -url https://$tname-admin.sharepoint.com -Credential $admincredentials
+                Write-Host -f Green $operation                         
             }
             catch {
                 Write-Warning "Unable to connect to SharePoint Online."
@@ -402,7 +527,7 @@ Process{
 
         If ($SharePointPNP) {
 
-            $operation = "Connecting to SharePoint Online PnP"
+            $operation = "SharePoint Online - PnP PowerShell"
             write-verbose $Operation
             Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
             $script:Prog_pct += $prog_step        
@@ -415,7 +540,7 @@ Process{
             }
 
             try { 
-                write-verbose "Connecting to SharePoint Online PNP"
+                write-verbose $Operation
                 $mod = 'OfficeDevPnP.PowerShell.V16.Commands'
                 if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                     Write-Warning "Required module: $mod is not installed or cannot be located. "
@@ -424,13 +549,14 @@ Process{
                 }
                 import-Module OfficeDevPnP.PowerShell.V16.Commands -DisableNameChecking -Verbose:$false
                 Connect-SPOnline -Credential $admincredentials -url "https://$tname.sharepoint.com"
+                Write-Host -f Green $Operation
             } catch {
                 Write-Warning "Unable to connect to SharePoint Online using the PnP PowerShell module"
             }
         }
 
         if ($Exchange ) {
-            $operation = "Connecting to Exchange Online"
+            $operation = "Exchange Online"
             write-verbose $Operation
             Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
             $script:Prog_pct += $prog_step        
@@ -439,26 +565,36 @@ Process{
             Get-PSSession -Name "Exchange Online" -ea SilentlyContinue| Remove-PSSession 
 
             #Creates an Exchange Online session using defined credential.
-            $ExchangeSession = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "https://outlook.office365.com/powershell-liveid/" -Credential $admincredentials -Authentication "Basic" -AllowRedirection
-            $ExchangeSession.Name = "Exchange Online"
-            #This imports the Office 365 session into your active Shell.
-            Import-PSSession $ExchangeSession -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
+            $ExchangeSession = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "https://outlook.office365.com/powershell-liveid/" -Credential $admincredentials -Authentication "Basic" -WarningAction Ignore -ErrorAction SilentlyContinue -ErrorVariable ConnectError
+            if ($ExchangeSession) {
+                $ExchangeSession.Name = "Exchange Online"
+                #This imports the Office 365 session into your active Shell.
+                Import-PSSession $ExchangeSession -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
+                Write-Host -f Green $Operation
+            } else {
+                Write-Warning $ConnectError[0].ErrorDetails
+            }
         }
 
         if ($Compliance) {
-            $operation = "Connecting to the Unified Compliance Center"
+            $operation = "Unified Compliance Center"
             write-verbose $Operation
             Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
             $script:Prog_pct += $prog_step        
             #Remove prior  Session 
             Get-PSSession -Name "Compliance Center" -ea SilentlyContinue| Remove-PSSession 
-
-            $PSCompliance = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://ps.compliance.protection.outlook.com/powershell-liveid/ -Credential $AdminCredentials -Authentication Basic -AllowRedirection -WarningAction Ignore
-            $PSCompliance.Name = "Compliance Center"
-            Import-PSSession $PSCompliance -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
+            
+            $PSCompliance = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://ps.compliance.protection.outlook.com/powershell-liveid/ -Credential $AdminCredentials -Authentication Basic -AllowRedirection -WarningAction Ignore -ErrorAction SilentlyContinue -ErrorVariable ConnectError
+            if ($PSCompliance) {
+                $PSCompliance.Name = "Compliance Center"
+                Import-PSSession $PSCompliance -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
+                Write-Host -f Green $Operation
+            } else {
+                Write-Warning $ConnectError[0].ErrorDetails
+            }
         }
         If ($AADRM) {
-            $operation = "Connecting to Azure Rights Management"
+            $operation = "Azure Rights Management"
             write-verbose $Operation
             Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
             $script:Prog_pct += $prog_step        
@@ -470,7 +606,17 @@ Process{
                 return $false
             }
             import-module AADRM -Verbose:$false
-            Connect-AadrmService -Credential $admincredentials 
+
+            #There is no good way to capture errors thrown 
+            #it is only possible to ignore errors , but that also hides the extual error report 
+            Connect-AadrmService -Credential $admincredentials
+            try{
+                $x =  Get-Aadrm -ErrorAction SilentlyContinue
+                Write-Host -f Green $Operation
+            } catch { 
+                #do nothing 
+            }             
+            
         }
     }
 
