@@ -19,7 +19,7 @@ The main use cases are :
 Connect to AAD 
 >*`Connect-O365 -Account admin@contoso.com`*
 
-Note that there ia an autocomplete option using [Tab] or [Ctrl-Space] to choose from any of the persisted credentials
+Note that the script support autocomplete for the -Account parameter using [Tab] or [Ctrl-Space] to choose from any of the persisted credentials on disk or in the Credential Manager.
 
 Connect to SharePoint and Exchange online ( AAD automaticaly included)  
 >`Connect-O365 -Account admin@contoso.com -SPO - EXO` 
