@@ -1,19 +1,19 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.6.4
+.VERSION 1.6.6
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
 .COPYRIGHT 
 .TAGS  O365 RMS 'Exchange Online' 'SharePoint Online' 'Skype for Business' 'PnP-Powershell' 'Office 365'
-.LICENSEURI 
+.LICENSEURI https://github.com/Josverl/Connect-O365/raw/master/License
 .PROJECTURI https://github.com/Josverl/Connect-O365
 .ICONURI https://raw.githubusercontent.com/Josverl/Connect-O365/master/Connect-O365.png
 .EXTERNALMODULEDEPENDENCIES MSOnline, Microsoft.Online.SharePoint.PowerShell, AADRM, OfficeDevPnP.PowerShell.V16.Commands, CredentialManager
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
-V1.6.4  Add autocompletion for saved accountsand credential manager, change default for -AAD, imporve connection error checks
+V1.6.5  Add autocompletion for saved accounts and credential manager, change default for -AAD, improve connection error checks
 V1.6.3  Add progress bars
 V1.6.2  Resolve multiple Aliases per parameter bug on some PS flavors, 
 V1.6.1  Add test for Sign-in Assistant,Add pro-acive check for modules during administration.
