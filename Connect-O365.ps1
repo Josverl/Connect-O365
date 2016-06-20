@@ -1,6 +1,6 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.6.6
+.VERSION 1.6.7
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
@@ -9,10 +9,11 @@
 .LICENSEURI https://github.com/Josverl/Connect-O365/raw/master/License
 .PROJECTURI https://github.com/Josverl/Connect-O365
 .ICONURI https://raw.githubusercontent.com/Josverl/Connect-O365/master/Connect-O365.png
-.EXTERNALMODULEDEPENDENCIES MSOnline, Microsoft.Online.SharePoint.PowerShell, AADRM, OfficeDevPnP.PowerShell.V16.Commands, CredentialManager
+.EXTERNALMODULEDEPENDENCIES MSOnline, Microsoft.Online.SharePoint.PowerShell, AADRM
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
+V1.6.7  Correct script for CredentialManager 2.0.0.0 parameter changes 
 V1.6.5  Add autocompletion for saved accounts and credential manager, change default for -AAD, improve connection error checks
 V1.6.3  Add progress bars
 V1.6.2  Resolve multiple Aliases per parameter bug on some PS flavors, 
@@ -30,24 +31,27 @@ V1.2    Add try-catch for SPO PNP Powershell, as that is less common
 V1.1    Initial publication to scriptcenter
 #>
 
+#Requires -Module @{ModuleName="CredentialManager";ModuleVersion="2.0.0.0"}, OfficeDevPnP.PowerShell.V16.Commands
+
 <#
 .Synopsis
    Connect to Office 365 and get ready to administer all services. 
    Includes installation of PowerShell modules 1/4/2016
 .DESCRIPTION
    Connect to Office 365 and most related services and get ready to administer all services.
-   The commandlet supports saving your administrative credentials in a safe manner so that it can be used in unattended files
+   The commandlet supports saving your administrative credentials in a safe manner so that it can be used in unattended files, and allows easy recall from the command line using autocompletion of saved credentials.
    Allows Powershell administration of : O365, Azure AD , Azure RMS, Exchange Online, SharePoint Online including PNP Powershell
       
 .EXAMPLE
-   connect-O365 -Account 'admin@contoso.com' -SharePoint 
-
+   Connect-O365 -Account 'admin@contoso.com' -SharePoint 
+   #Note: intellisense 
+   
 .EXAMPLE
-   connect-O365 -Account 'admin@contoso.com' -SPO -EXO -Skype -Compliance -AADRM
+   Connect-O365 -Account 'admin@contoso.com' -SPO -EXO -Skype -Compliance -AADRM
 
 .EXAMPLE
    #close any previously opened PS remote sessions (Exchange , Skype , Compliance Center) 
-   connect-O365 -close
+   Connect-O365 -close
 
 .EXAMPLE
    #Connect to MSOnline, and store securly store the credentials 
@@ -189,8 +193,8 @@ DynamicParam {
             }
             #check if the credentialmanager module is installed 
             if (get-module credentialmanager) {
-                #Find the credentials stored in the credential manager
-                $credentials = Get-StoredCredential -Type GENERIC -AsPsCredential:$false 
+                #Find the credentials stored in the credential manager (version 2.0
+                $credentials = Get-StoredCredential -Type GENERIC -AsCredentialObject -WarningAction SilentlyContinue
                 $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment 
                 #now create the list               
                 $credentials| ForEach-Object {
