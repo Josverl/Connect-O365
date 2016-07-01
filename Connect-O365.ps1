@@ -1,6 +1,6 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.6.7
+.VERSION 1.6.7.3
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
@@ -13,6 +13,7 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
+V1.6.8  Add glabal variables $TenantName and AdminName, consistent parameter names 
 V1.6.7  Correct script for CredentialManager 2.0.0.0 parameter changes 
 V1.6.5  Add autocompletion for saved accounts and credential manager, change default for -AAD, improve connection error checks
 V1.6.3  Add progress bars
@@ -31,7 +32,8 @@ V1.2    Add try-catch for SPO PNP Powershell, as that is less common
 V1.1    Initial publication to scriptcenter
 #>
 
-#Requires -Module @{ModuleName="CredentialManager";ModuleVersion="2.0.0.0"}, OfficeDevPnP.PowerShell.V16.Commands
+#Requires -Module @{ModuleName="CredentialManager";ModuleVersion="2.0"}
+#Requires -Module OfficeDevPnP.PowerShell.V16.Commands
 
 <#
 .Synopsis
@@ -192,7 +194,8 @@ DynamicParam {
                 New-Object System.Management.Automation.CompletionResult $_.BaseName, $_.BaseName, 'DynamicKeyword', $_.FullName
             }
             #check if the credentialmanager module is installed 
-            if (get-module credentialmanager) {
+            $CM = get-module credentialmanager -ListAvailable | select -Last 1
+            if ($cm -ne $null -and $CM.Version -eq "2.0") {
                 #Find the credentials stored in the credential manager (version 2.0
                 $credentials = Get-StoredCredential -Type GENERIC -AsCredentialObject -WarningAction SilentlyContinue
                 $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment 
@@ -216,10 +219,17 @@ begin {
     #>
     $script:MSG_Cred = 'Please enter the Tenant Admin or Service Admin password'
     $script:MSG_CredCancel = 'No password entered or user canceled'
-    function global:Store-myCreds ($username){
-        $Credential = Get-Credential -UserName $username -Message $Script:MSG_Cred
+    function global:Store-myCreds {
+    Param (
+            # The Account or Username 
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
+            [Alias("Username")]  # Backward compat with v1.6.7 and older 
+            [string]$Account
+    )
+        $Credential = Get-Credential -Account $Account -Message $Script:MSG_Cred
         if ($Credential) { 
-            $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
+            $Store = "$env:USERPROFILE\creds\$Account.txt"
             MkDir "$env:USERPROFILE\Creds" -ea 0 | Out-Null
             $Credential.Password | ConvertFrom-SecureString | Set-Content $store
             Write-Verbose "Saved credentials to $store"
@@ -236,8 +246,14 @@ begin {
        if ( Test-MyCreds -UserName Admin@contoso.com ) { "credentials found" }
     #>
     function script:Test-myCreds {
-    param( [string]$UserName )
-        $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
+    param( 
+            # The Account or Username 
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
+            [Alias("Username")]  # Backward compat with v1.6.7 and older 
+            [string]$Account
+        )
+        $Store = "$env:USERPROFILE\creds\$Account.txt"
         return (Test-Path $store)
     }
     <#
@@ -254,22 +270,43 @@ begin {
        Get-MyCreds -UserName Admin@contoso.com -persist
 
     #>
-    function global:Get-myCreds ($UserName , [switch]$Persist ){
-        $Store = "$env:USERPROFILE\creds\$USERNAME.txt"
+
+    <#
+    .Synopsis
+       Short description
+    .DESCRIPTION
+       Long description
+    .EXAMPLE
+       Example of how to use this cmdlet
+    .EXAMPLE
+       Another example of how to use this cmdlet
+    #>
+    function global:Get-myCreds {
+        Param
+        (
+            # The Account or Username 
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
+            [Alias("Username")]  # Backward compat with v1.6.7 and older 
+            [string]$Account,
+            # Persist username and password 
+            [switch] $Persist
+        )
+        $Store = "$env:USERPROFILE\creds\$Account.txt"
         if ( (Test-Path $store) -AND  $Persist -eq $false  ) {
             #use a stored password if found , unless -persist/-force is used to ask for and store a new password
             Write-Verbose "Retrieved credentials from $store"
             $Password = Get-Content $store | ConvertTo-SecureString
-            $Credential = New-Object System.Management.Automation.PsCredential($UserName,$Password)
+            $Credential = New-Object System.Management.Automation.PsCredential($Account,$Password)
             return $Credential
         } else {
-            if ($persist -and -not [string]::IsNullOrEmpty($UserName)) {
+            if ($persist -and -not [string]::IsNullOrEmpty($Account)) {
                 WRITE-VERBOSE 'Ask and store new credentials'
-                $admincredentials  = Store-myCreds $UserName
+                $admincredentials  = Store-myCreds $Account
                 return $admincredentials
             } else {
                 WRITE-VERBOSE 'Ask for credentials'
-                return Get-Credential -Credential $username
+                return Get-Credential -Credential $Account
             }
         }
      }
@@ -288,49 +325,59 @@ begin {
 
     #>
     function global:retrieve-credentials {
-        param (
+        Param
+        (
+            # The Account or Username 
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
             [string]$Account,
             [switch]$Persist
         )
         $admincredentials = $null
         #if credentials are stored in the filestore 
-        if (test-myCreds $account) {
+        if (test-myCreds  $account) {
             write-verbose 'Find credentials from credential folder'
             $admincredentials = Get-myCreds $account -Persist:$Persist 
         } else { 
-            write-verbose 'Find credentials stored in the credential manager'
-            #Find the credentials stored in the credential manager
-            $credentials = Get-StoredCredential -Type GENERIC -AsPsCredential:$false 
-            #work around pipeline constraints in get-stored credentials v1.0/1.1
-            $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment
-            #check match on target name
-            $stored = $credentials | where {$_.Targetname -ieq "LegacyGeneric:target=$account"} | select -First 1
-            #otherwise check on username
-            if ($stored -eq $null) {
-                write-verbose 'Find credentials based on user name'
-                $stored = $credentials | where {$_.UserName-ieq $account} | select -First 1
-            }
-            if ($persist) {
-                write-verbose 'Asking for a new password'
-                #if -Persist is specified we need to ask for a new password and update the stored password
-                if ($stored) { $name= $stored.Username } else { $name=$account}
-                $newCred = Get-Credential -UserName $name -Message $Script:MSG_Cred
-                if ($newCred -eq $null) {
-                    write-warning $script:MSG_CredCancel
-                } else {
-                    if ($stored) {
-                        write-verbose 'Update existing Stored Credential'
-                        $stored = New-StoredCredential -Comment "Connect-O365" -Password $newCred.GetNetworkCredential().Password -Persist ENTERPRISE -Target $stored.TargetName -Type GENERIC -UserName $newcred.UserName
+
+            #check if the credentialmanager module is installed 
+            $CM = get-module credentialmanager -ListAvailable | select -Last 1
+            if ($cm -ne $null -and $CM.Version -eq "2.0") {
+                write-verbose 'Find credentials stored in the credential manager'
+                #Find the credentials stored in the credential manager
+                #check match on target name
+                $stored = Get-StoredCredential -Type GENERIC -Target  $account -AsCredentialObject| select -First 1
+                #otherwise check on username
+                if ($stored -eq $null) {
+                    write-verbose 'Find credentials based on user name'
+                    $credentials = Get-StoredCredential -Type GENERIC -AsCredentialObject
+                    #work around pipeline constraints in get-stored 
+                    $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment
+                    $stored = $credentials | where {$_.UserName-ieq $account} | select -First 1
+                }
+                if ($persist) {
+                    write-verbose 'Asking for a new password'
+                    #if -Persist is specified we need to ask for a new password and update the stored password
+                    if ($stored) { $name= $stored.Username } else { $name=$account}
+                    $newCred = Get-Credential -UserName $name -Message $Script:MSG_Cred
+                    if ($newCred -eq $null) {
+                        write-warning $script:MSG_CredCancel
                     } else {
-                        write-verbose 'Create New Stored Credential'
-                        $stored = New-StoredCredential -Comment "Connect-O365" -Password $newCred.GetNetworkCredential().Password -Persist ENTERPRISE -Target $Account -Type GENERIC -UserName $newcred.UserName
+                        if ($stored) {
+                            write-verbose 'Update existing Stored Credential'
+                            $stored = New-StoredCredential -Comment "Connect-O365" -Password $newCred.GetNetworkCredential().Password -Persist ENTERPRISE -Target $stored.TargetName -Type GENERIC -UserName $newcred.UserName 
+                        } else {
+                            write-verbose 'Create New Stored Credential'
+                            $stored = New-StoredCredential -Comment "Connect-O365" -Password $newCred.GetNetworkCredential().Password -Persist ENTERPRISE -Target $newcred.UserName -Type GENERIC -UserName $newcred.UserName 
+                        }
                     }
                 }
+                #If a stored cred was found
+                if ($stored -ne $null) {
+                    write-verbose "Retrieving Target : $($stored.Targetname)"
+                    $admincredentials = Get-StoredCredential -Target $stored.Targetname -Type 'GENERIC'
+                }        
             }
-            #If a stored cred was found
-            if ($stored -ne $null) {
-                $admincredentials = Get-StoredCredential -Target $stored.Targetname -Type 'GENERIC'
-            }        
         }
         return $admincredentials
     }
@@ -439,9 +486,14 @@ Process{
     
         #retrieve admin credentials for filestore and secure store 
         $admincredentials = retrieve-credentials -account $account -Persist:$persist
-        if ($admincredentials -eq $null){ throw "A valid Tenant Admin Account is required." } 
-        Write-Host -f Cyan "UserName $($admincredentials.UserName)"
-
+        if ($admincredentials -eq $null){ 
+            Write-Verbose "No stored credentials could be found"
+            throw "A valid Tenant Admin Account is required." 
+        } 
+        ${Global:AdminName} = $admincredentials.UserName
+        Write-Host -f Cyan "UserName ${Global:AdminName}"
+        
+        ${Global:TenantName}  = $null
         if ( $AAD) {
             $operation = "Azure AD"
             write-verbose $Operation
@@ -458,9 +510,20 @@ Process{
             Import-Module MSOnline -Verbose:$false 
             #Establishes Online Services connection to Office 365 Management Layer.
             try { 
-                Connect-MsolService -Credential $admincredentials
-                Write-Host -f Green $operation
-            } finally {}
+                Connect-MsolService -Credential $admincredentials -ErrorAction SilentlyContinue
+                #get tenant name for future use
+                $Initial = Get-MsolDomain -ErrorAction SilentlyContinue | ?{ $_.IsInitial -eq $true}
+                if ($Initial) {
+                    ${Global:TenantName} = $Initial.Name.Split(".")[0]
+                    Write-Host -f Green $operation
+                } else  {
+                    Write-Warning "Unable to connect to Azure AD"
+                }
+            } catch {
+                Write-Warning "Unable to connect to Azure AD"
+            }
+        } else {
+            #
         }
 
         if ($Skype ){
@@ -507,9 +570,6 @@ Process{
 
             if (!$AAD) {
                 Throw "AAD Connection required"
-            } else {
-                #get tenant name for AAD Connection
-                $tname= (Get-MsolDomain | ?{ $_.IsInitial -eq $true}).Name.Split(".")[0]
             }
             try {
                 $mod = 'Microsoft.Online.Sharepoint.PowerShell'
@@ -521,7 +581,7 @@ Process{
                 #Imports SharePoint Online session commands into your local Windows PowerShell session.
                 Import-Module Microsoft.Online.Sharepoint.PowerShell -DisableNameChecking -Verbose:$false
                 #lookup the tenant name based on the intial domain for the tenant
-                Connect-SPOService -url https://$tname-admin.sharepoint.com -Credential $admincredentials
+                Connect-SPOService -url "https://${Global:TenantName}-admin.sharepoint.com" -Credential $admincredentials
                 Write-Host -f Green $operation                         
             }
             catch {
@@ -538,10 +598,7 @@ Process{
 
             if (!$AAD) {
                 Throw "AAD Connection required"
-            } else {
-                #get tenant name for AAD Connection
-                $tname= (Get-MsolDomain | ?{ $_.IsInitial -eq $true}).Name.Split(".")[0]
-            }
+            } 
 
             try { 
                 write-verbose $Operation
@@ -552,7 +609,7 @@ Process{
                     #return $false
                 }
                 import-Module OfficeDevPnP.PowerShell.V16.Commands -DisableNameChecking -Verbose:$false
-                Connect-SPOnline -Credential $admincredentials -url "https://$tname.sharepoint.com"
+                Connect-SPOnline -Credential $admincredentials -url "https://${Global:TenantName}.sharepoint.com"
                 Write-Host -f Green $Operation
             } catch {
                 Write-Warning "Unable to connect to SharePoint Online using the PnP PowerShell module"
