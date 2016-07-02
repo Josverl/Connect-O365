@@ -20,7 +20,6 @@ The main use cases are :
 How to Use
 --------------
 
-<<<<<<< .merge_file_a09864
 **Connect to AAD **
 
 &gt;`Connect-O365 -Account admin@contoso.com`
@@ -28,10 +27,11 @@ How to Use
 Note that the script support autocomplete for the -Account parameter using \[Tab\] or \[Ctrl-Space\] to choose from any of the persisted credentials on disk or in the Credential Manager.
 
 **Connect to SharePoint and Exchange online ( AAD automaticaly included)
-**&gt;`Connect-O365 -Account admin@contoso.com -SPO - EXO`
+
+&gt;`Connect-O365 -Account admin@contoso.com -SPO - EXO`
 
 How to Install
-------------------
+--------------
 
 Install to the *machine* by installing from an Admin elevated Powershell :
 
@@ -39,11 +39,16 @@ Install to the *machine* by installing from an Admin elevated Powershell :
 
 or install for the *current user* only : (No admin permissions required)
 
-&gt;`Insta``ll-Script -Name Connect-O365 -scope CurrentUser`
+&gt;`Install-Script -Name Connect-O365 -scope CurrentUser`
+
+
+Intellisense
+------------
+
+The script supports autocomplete for the -Account parameter using [Tab] or [Ctrl-Space]. This allows you to toggle between, or select from any of the persisted credentials on Disk and in the Credential Manager.
 
 To download and install the supporting modules to connect to Office 365:
 =======
-Note that the script support autocomplete for the -Account parameter using [Tab] or [Ctrl-Space] to choose from any of the persisted credentials on disk or in the Credential Manager.
 
 &gt;`Connect-O365 -Install`
 
