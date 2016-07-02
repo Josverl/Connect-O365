@@ -1,4 +1,4 @@
-\#Connect-O365
+Connect-O365
 ==============
 
 Connect to Office 365 and most related services and get ready to admin with Powershell.
@@ -17,7 +17,7 @@ The main use cases are :
 
 -   Tests the installed Modules ( -Test )
 
-\#\#How to Use
+How to Use
 --------------
 
 <<<<<<< .merge_file_a09864
@@ -30,7 +30,7 @@ Note that the script support autocomplete for the -Account parameter using \[Tab
 **Connect to SharePoint and Exchange online ( AAD automaticaly included)
 **&gt;`Connect-O365 -Account admin@contoso.com -SPO - EXO`
 
-\#\#How to Install
+How to Install
 ------------------
 
 Install to the *machine* by installing from an Admin elevated Powershell :
@@ -44,7 +44,6 @@ or install for the *current user* only : (No admin permissions required)
 To download and install the supporting modules to connect to Office 365:
 =======
 Note that the script support autocomplete for the -Account parameter using [Tab] or [Ctrl-Space] to choose from any of the persisted credentials on disk or in the Credential Manager.
->>>>>>> .merge_file_a09884
 
 &gt;`Connect-O365 -Install`
 
@@ -68,12 +67,12 @@ Dependend Modules that are published on the PowerShell Gallery are not subject t
 
 -   CredentialManager
 
-\#\#How to Update
+How to Update
 -----------------
 
 Periodically update this and other scripts by running `update-script`
 
-\#Credential Management
+Credential Management
 =======================
 
 Credentials can be used from 2 locations:
@@ -98,7 +97,7 @@ Control Panel &gt; Credential Manager &gt; Windows Credentials &gt; Generic Cred
 
 The network address can be used as an Alias
 
-#### *Sample :*
+# *Sample :*
 
     Internet or network address : Production
     Username                    : serviceadmin@contoso.com
@@ -106,13 +105,11 @@ The network address can be used as an Alias
 
 When looking up the credentials from the credential manager matches can be made either on
 
-<<<<<<< .merge_file_a09864
 -   The Username (`Connect-O365 -Account `<serviceadmin@contoso.com>)
-
 -   The target network address (`Connect-O365 -Account Production`)
-=======
-------------------------
 
+Code of Conduct
+===============
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
->>>>>>> .merge_file_a09884
+
