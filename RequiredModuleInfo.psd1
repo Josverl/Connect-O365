@@ -43,8 +43,8 @@ write-host -f green "Platform : $xcpu, Language : $language ; $LangCountry"
             Name= "SharePoint Online Management Shell"
             Type= "MSI"
             #need additional escaping for path expansion
-            Source=  "https://download.microsoft.com/download/0/2/E/02E7E5BA-2190-44A8-B407-BC73CA0D6B87/sharepointonlinemanagementshell_5111-1200_$($xcpu)_$LangCountry.msi"
-            Version=  "16.0.5111.1200"
+            Source =  "https://download.microsoft.com/download/0/2/E/02E7E5BA-2190-44A8-B407-BC73CA0D6B87/sharepointonlinemanagementshell_5326-1200_x64_en-us.msi"
+            Version=  "16.0.5326.1200"
             Web= "https://www.microsoft.com/en-us/download/confirmation.aspx?id=35588&6B49FDFB-8E5B-4B07-BC31-15695C5A2143=1"
             ID= "{95160000-115B-0409-1000-0000000FF1CE}"
         },
