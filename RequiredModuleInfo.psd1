@@ -63,7 +63,7 @@ write-host -f green "Platform : $xcpu, Language : $language ; $LangCountry"
             Tag=  "PNPPS"
             Name= "OfficeDevPnP.PowerShell"
             Type= "Module"
-            Module= "OfficeDevPnP.PowerShell.V16.Commands"
+            Module= "SharepointPnPPowerShellOnline"
             Source=  "PSGallery"
             Web= "https://github.com/OfficeDev/PnP-PowerShell"
         }  
