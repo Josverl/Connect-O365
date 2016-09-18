@@ -1,6 +1,6 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.6.7.3
+.VERSION 1.7.1
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
@@ -13,7 +13,10 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
-V1.6.8  Add glabal variables $TenantName and AdminName, consistent parameter names 
+V1.7.1  Minor improvements in account lookup     
+V1.7    
+V1.6.9  Updated changed external dependency name SharePointPnPPowerShellOnline
+V1.6.8  Add global variables $TenantName and $AdminName, consistent parameter names 
 V1.6.7  Correct script for CredentialManager 2.0.0.0 parameter changes 
 V1.6.5  Add autocompletion for saved accounts and credential manager, change default for -AAD, improve connection error checks
 V1.6.3  Add progress bars
@@ -33,7 +36,7 @@ V1.1    Initial publication to scriptcenter
 #>
 
 #Requires -Module @{ModuleName="CredentialManager";ModuleVersion="2.0"}
-#Requires -Module OfficeDevPnP.PowerShell.V16.Commands
+#Requires -Module SharePointPNPPowershellOnline
 
 <#
 .Synopsis
@@ -191,18 +194,29 @@ DynamicParam {
             $arrSet = Get-ChildItem -Path "$env:USERPROFILE\Creds" 
             $arrSet | ForEach-Object {
                 # Completion text , ListItem text, Resulttype, Tooltip
-                New-Object System.Management.Automation.CompletionResult $_.BaseName, $_.BaseName, 'DynamicKeyword', $_.FullName
+                New-Object System.Management.Automation.CompletionResult $_.BaseName, $_.BaseName, 'ProviderItem', $_.FullName
             }
             #check if the credentialmanager module is installed 
             $CM = get-module credentialmanager -ListAvailable | select -Last 1
             if ($cm -ne $null -and $CM.Version -eq "2.0") {
                 #Find the credentials stored in the credential manager (version 2.0
-                $credentials = Get-StoredCredential -Type GENERIC -AsCredentialObject -WarningAction SilentlyContinue
-                $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment 
+                $storedcredentials = Get-StoredCredential -Type GENERIC -AsCredentialObject -WarningAction SilentlyContinue
+
+                #Only the onese with a specified targetname different from the username
+                $credentials = $storedcredentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, @{Name="TargetName";Expression={$($_.Targetname).Replace("LegacyGeneric:target=","")}} , Type, TargetAlias, Comment 
+                $credentials = $credentials | where { $_.targetname -ne $_.Username}
                 #now create the list               
                 $credentials| ForEach-Object {
                     # Completion text , ListItem text, Resulttype, Tooltip
-                    if ($_.Comment -ne $null ) {$TTIP = $_.Comment } else { $TTIP = $_.Targetname}
+                    New-Object System.Management.Automation.CompletionResult $_.TargetName, $_.TargetName, 'DynamicKeyword', $_.Username
+                }
+
+                #Now All 
+                $credentials = $storedcredentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment 
+                #now create the list               
+                $credentials| ForEach-Object {
+                    # Completion text , ListItem text, Resulttype, Tooltip
+                    if ($_.Comment -ne $null ) {$TTIP = $_.Comment } else { $TTIP = $($_.Targetname).Replace("LegacyGeneric:target=","") }
                     New-Object System.Management.Automation.CompletionResult $_.UserName, $_.Username, 'History', $TTIP
                 }
             }

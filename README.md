@@ -20,6 +20,7 @@ The main use cases are :
 \#\#How to Use
 --------------
 
+<<<<<<< .merge_file_a09864
 **Connect to AAD **
 
 &gt;`Connect-O365 -Account admin@contoso.com`
@@ -41,6 +42,9 @@ or install for the *current user* only : (No admin permissions required)
 &gt;`Insta``ll-Script -Name Connect-O365 -scope CurrentUser`
 
 To download and install the supporting modules to connect to Office 365:
+=======
+Note that the script support autocomplete for the -Account parameter using [Tab] or [Ctrl-Space] to choose from any of the persisted credentials on disk or in the Credential Manager.
+>>>>>>> .merge_file_a09884
 
 &gt;`Connect-O365 -Install`
 
@@ -102,6 +106,13 @@ The network address can be used as an Alias
 
 When looking up the credentials from the credential manager matches can be made either on
 
+<<<<<<< .merge_file_a09864
 -   The Username (`Connect-O365 -Account `<serviceadmin@contoso.com>)
 
 -   The target network address (`Connect-O365 -Account Production`)
+=======
+------------------------
+
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+>>>>>>> .merge_file_a09884
