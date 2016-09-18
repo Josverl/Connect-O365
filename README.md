@@ -3,7 +3,7 @@ Connect-O365
 
 Connect to Office 365 and most related services and get ready to admin with Powershell.
 
-I created this script because I found it too confusing to remember the different options to install and connect connect to the different Office 365 workloads. In my line of work this is also something I frequently need to explain to others, so they can repeat this on other workstations. Also I found it tedious to need to enter the credentials for the different test accounts over and over, as well as the inability to use this from other scripts withouth re-writing nearly the same code over and over.
+I created this script because I found it (too) confusing to remember the different options to install and connect connect to the different Office 365 workloads. In my line of work this is also something I frequently need to explain to others, so they can repeat this on other workstations. Also I found it tedious to need to enter the credentials for the different test accounts over and over, as well as the inability to use this from other scripts withouth re-writing nearly the same code over and over.
 
 What initially started as a few lines, has grown over time to a script that is quite usefull, especially in combination with the ability of PowerShell 5 (and earlier versions) to easily add and update scripts via the Powershell gallery.
 
@@ -20,10 +20,6 @@ The main use cases are :
 How to Use
 --------------
 
-<<<<<<< HEAD
-<<<<<<< .merge_file_a09864
-=======
->>>>>>> adc471e4eda1dea73ce76f04da889057c7708490
 **Connect to AAD **
 
 &gt;`Connect-O365 -Account admin@contoso.com`
@@ -53,11 +49,8 @@ The script supports autocomplete for the -Account parameter using [Tab] or [Ctrl
 
 To download and install the supporting modules to connect to Office 365:
 =======
-<<<<<<< HEAD
+
 Note that the script support autocomplete for the -Account parameter using [Tab] or [Ctrl-Space] to choose from any of the persisted credentials on disk or in the Credential Manager.
->>>>>>> .merge_file_a09884
-=======
->>>>>>> adc471e4eda1dea73ce76f04da889057c7708490
 
 &gt;`Connect-O365 -Install`
 
@@ -119,24 +112,14 @@ The network address can be used as an Alias
 
 When looking up the credentials from the credential manager matches can be made either on
 
-<<<<<<< HEAD
-<<<<<<< .merge_file_a09864
--   The Username (`Connect-O365 -Account `<serviceadmin@contoso.com>)
 
--   The target network address (`Connect-O365 -Account Production`)
-=======
-------------------------
-=======
 -   The Username (`Connect-O365 -Account `<serviceadmin@contoso.com>)
 -   The target network address (`Connect-O365 -Account Production`)
->>>>>>> adc471e4eda1dea73ce76f04da889057c7708490
+
+
+
 
 Code of Conduct
 ===============
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-<<<<<<< HEAD
->>>>>>> .merge_file_a09884
-=======
-
->>>>>>> adc471e4eda1dea73ce76f04da889057c7708490
