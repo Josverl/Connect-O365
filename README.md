@@ -1,4 +1,4 @@
-\#Connect-O365
+Connect-O365
 ==============
 
 Connect to Office 365 and most related services and get ready to admin with Powershell.
@@ -17,10 +17,13 @@ The main use cases are :
 
 -   Tests the installed Modules ( -Test )
 
-\#\#How to Use
+How to Use
 --------------
 
+<<<<<<< HEAD
 <<<<<<< .merge_file_a09864
+=======
+>>>>>>> adc471e4eda1dea73ce76f04da889057c7708490
 **Connect to AAD **
 
 &gt;`Connect-O365 -Account admin@contoso.com`
@@ -28,10 +31,11 @@ The main use cases are :
 Note that the script support autocomplete for the -Account parameter using \[Tab\] or \[Ctrl-Space\] to choose from any of the persisted credentials on disk or in the Credential Manager.
 
 **Connect to SharePoint and Exchange online ( AAD automaticaly included)
-**&gt;`Connect-O365 -Account admin@contoso.com -SPO - EXO`
 
-\#\#How to Install
-------------------
+&gt;`Connect-O365 -Account admin@contoso.com -SPO - EXO`
+
+How to Install
+--------------
 
 Install to the *machine* by installing from an Admin elevated Powershell :
 
@@ -39,12 +43,21 @@ Install to the *machine* by installing from an Admin elevated Powershell :
 
 or install for the *current user* only : (No admin permissions required)
 
-&gt;`Insta``ll-Script -Name Connect-O365 -scope CurrentUser`
+&gt;`Install-Script -Name Connect-O365 -scope CurrentUser`
+
+
+Intellisense
+------------
+
+The script supports autocomplete for the -Account parameter using [Tab] or [Ctrl-Space]. This allows you to toggle between, or select from any of the persisted credentials on Disk and in the Credential Manager.
 
 To download and install the supporting modules to connect to Office 365:
 =======
+<<<<<<< HEAD
 Note that the script support autocomplete for the -Account parameter using [Tab] or [Ctrl-Space] to choose from any of the persisted credentials on disk or in the Credential Manager.
 >>>>>>> .merge_file_a09884
+=======
+>>>>>>> adc471e4eda1dea73ce76f04da889057c7708490
 
 &gt;`Connect-O365 -Install`
 
@@ -68,12 +81,12 @@ Dependend Modules that are published on the PowerShell Gallery are not subject t
 
 -   CredentialManager
 
-\#\#How to Update
+How to Update
 -----------------
 
 Periodically update this and other scripts by running `update-script`
 
-\#Credential Management
+Credential Management
 =======================
 
 Credentials can be used from 2 locations:
@@ -98,7 +111,7 @@ Control Panel &gt; Credential Manager &gt; Windows Credentials &gt; Generic Cred
 
 The network address can be used as an Alias
 
-#### *Sample :*
+# *Sample :*
 
     Internet or network address : Production
     Username                    : serviceadmin@contoso.com
@@ -106,13 +119,24 @@ The network address can be used as an Alias
 
 When looking up the credentials from the credential manager matches can be made either on
 
+<<<<<<< HEAD
 <<<<<<< .merge_file_a09864
 -   The Username (`Connect-O365 -Account `<serviceadmin@contoso.com>)
 
 -   The target network address (`Connect-O365 -Account Production`)
 =======
 ------------------------
+=======
+-   The Username (`Connect-O365 -Account `<serviceadmin@contoso.com>)
+-   The target network address (`Connect-O365 -Account Production`)
+>>>>>>> adc471e4eda1dea73ce76f04da889057c7708490
 
+Code of Conduct
+===============
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+<<<<<<< HEAD
 >>>>>>> .merge_file_a09884
+=======
+
+>>>>>>> adc471e4eda1dea73ce76f04da889057c7708490
