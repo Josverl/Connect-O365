@@ -853,7 +853,7 @@ Process{
                                     try { 
                                         if ($c.Type -ieq "MSI" ) {
                                             Write-Verbose "Install MSI package : $msi"
-                                            Start-Process -FilePath "msiexec" -ArgumentList "/package $msi /passive" -Wait
+                                            Start-Process -FilePath "msiexec" -ArgumentList "/package $msi /passive /promptrestart" -Wait
                                         } else {
                                             $Options = "/Passive"
                                             if ($c.Setup ) { $Options = $c.SetupOptions }
