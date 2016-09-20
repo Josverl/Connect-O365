@@ -9,7 +9,7 @@
 write-host -f green "Required Module Info for Connect-O365 script. Configuration Version 1.6.3"
 write-host -f green "Platform : $xcpu, Language : $language ; $LangCountry"
 @{
-    Version = "1.6.9";
+    Version = "1.7";
     AdminComponents = @( 
         @{
             Tag=  "SIA"
