@@ -464,7 +464,7 @@ Process{
                 }
             }
             if ($SharePointPNP) { 
-                if ( get-module OfficeDevPnP.PowerShell.V16.Commands )
+                if ( get-module SharepointPnPPowerShellOnline )
                 {
                     #Also Disconnect PNPPowershell
                     write-verbose "- Disconnect PNP Powershell"
@@ -616,13 +616,13 @@ Process{
 
             try { 
                 write-verbose $Operation
-                $mod = 'OfficeDevPnP.PowerShell.V16.Commands'
+                $mod = 'SharepointPnPPowerShellOnline'
                 if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                     Write-Warning "Required module: $mod is not installed or cannot be located. "
                     Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
                     #return $false
                 }
-                import-Module OfficeDevPnP.PowerShell.V16.Commands -DisableNameChecking -Verbose:$false
+                import-Module SharepointPnPPowerShellOnline -DisableNameChecking -Verbose:$false
                 Connect-SPOnline -Credential $admincredentials -url "https://${Global:TenantName}.sharepoint.com"
                 Write-Host -f Green $Operation
             } catch {
@@ -980,7 +980,7 @@ Process{
         }
 
         #test if all Local modules are installed correctly 
-        foreach ($module in @( "MSonline","SkypeOnlineConnector","Microsoft.Online.Sharepoint.PowerShell","OfficeDevPnP.PowerShell.V16.Commands","AADRM" ) ) {
+        foreach ($module in @( "MSonline","SkypeOnlineConnector","Microsoft.Online.Sharepoint.PowerShell","SharepointPnPPowerShellOnline","AADRM" ) ) {
             $operation = $Module
             write-verbose $Operation
             Write-Progress "Test and validate External powershell modules to connect to Office 365" `
