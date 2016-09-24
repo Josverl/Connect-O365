@@ -1,6 +1,6 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.7.1
+.VERSION 1.7.2
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
@@ -13,8 +13,8 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
+v1.7.2  Update tests for changed external dependency name SharePointPnPPowerShellOnline
 V1.7.1  Minor improvements in account lookup     
-V1.7    
 V1.6.9  Updated changed external dependency name SharePointPnPPowerShellOnline
 V1.6.8  Add global variables $TenantName and $AdminName, consistent parameter names 
 V1.6.7  Correct script for CredentialManager 2.0.0.0 parameter changes 
@@ -144,6 +144,7 @@ Param
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [switch]$Close = $false,
 
+
 <# parameterset INstall #>
     #Download and Install the supporting Modules
     [Parameter(ParameterSetName="Install",Mandatory=$true)]
@@ -172,6 +173,11 @@ Param
 #    $InstallPreview = $true,
 
 #Mixed parameterset
+
+    [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Test",Mandatory=$false)]
+    [Parameter(ParameterSetName="Close",Mandatory=$false)]
+    [switch]$PassThrough = $false,
 
     # Save the account credentials for later use        
     [Parameter(ParameterSetName="Test",Mandatory=$false)]    
@@ -482,9 +488,13 @@ Process{
                     Disconnect-AadrmService 
                 }
             } 
-            return $True
+            if ($PassThrough) { # Only return value if requested
+                return $True
+            }
         } catch {
-            return $false
+            if ($PassThrough) { # Only return value if requested 
+                return $false
+            }
         }
         Finally {
             Write-Progress "Connect-O365" -Completed  
@@ -518,7 +528,9 @@ Process{
             if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                 Write-warning "Required module: $mod is not installed or cannot be located."
                 Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                return $false
+                if ($PassThrough ) { #Only return if requested 
+                    return $false
+                }
             }
             #Imports the installed Azure Active Directory module.
             Import-Module MSOnline -Verbose:$false 
@@ -550,7 +562,9 @@ Process{
             if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                 Write-warning "Required module: $mod is not installed or cannot be located. "
                 Write-Host "Install the missing module using the -Install parameter; or restart PowerShell" -ForegroundColor Yellow
-                return $false
+                if ($PassThrough ) { #Only return if requested 
+                    return $false
+                }
             }
             #Imports the installed Skype for Business Online services module.
             Import-Module SkypeOnlineConnector -Verbose:$false  -Force 
@@ -590,7 +604,9 @@ Process{
                 if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                     Write-warning "Required module: $mod is not installed or cannot be located. "
                     Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                    return $false
+                    if ($PassThrough ) { #Only return if requested 
+                        return $false
+                    }
                 }
                 #Imports SharePoint Online session commands into your local Windows PowerShell session.
                 Import-Module Microsoft.Online.Sharepoint.PowerShell -DisableNameChecking -Verbose:$false
@@ -620,7 +636,9 @@ Process{
                 if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                     Write-Warning "Required module: $mod is not installed or cannot be located. "
                     Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                    #return $false
+                    if ($PassThrough ) { #Only return if requested 
+                        return $false
+                    }
                 }
                 import-Module SharepointPnPPowerShellOnline -DisableNameChecking -Verbose:$false
                 Connect-SPOnline -Credential $admincredentials -url "https://${Global:TenantName}.sharepoint.com"
@@ -678,7 +696,9 @@ Process{
             if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                 Write-Warning "Required module: $mod is not installed or cannot be located. "
                 Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                return $false
+                if ($PassThrough ) { #Only return if requested 
+                    return $false
+                }
             }
             import-module AADRM -Verbose:$false
 
@@ -954,6 +974,8 @@ Process{
         $script:Prog_pct = 0
         $script:Prog_step = 100 /6
 
+        $AllOk = $true    #Let's start Positive 
+
         $ServiceName ='Microsoft Online Services Sign-in Assistant'
 
         $operation = $ServiceName
@@ -968,11 +990,13 @@ Process{
         {
             Write-Host 
             Write-Warning "Service : '$ServiceName' is not installed"
+            $AllOk = $false
         } else {
             if ($SignInAssistant.Status -ine "Running" ) {
                 Write-Host 
                 Write-Warning "Service '$ServiceName' is not running"
                 Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+                $AllOk = $false
             }
             else {
                 Write-Host " - OK" -ForegroundColor Green
@@ -993,6 +1017,7 @@ Process{
                 Write-Host 
                 Write-warning "Module '$Module' is not installed or cannot be located."
                 Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
+                $AllOk = $false
 
             } else {
                 Try {
@@ -1003,8 +1028,13 @@ Process{
                     Write-Host 
                     Write-warning "Module '$Module' could not be Imported."
                     Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
+                    $AllOk = $false
                 }
             }
+        }
+        #All test complete, and -Passthough specified, return the test result 
+        if ($PassThrough) {
+            return $AllOk
         }
     }
 }
