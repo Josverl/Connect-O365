@@ -126,6 +126,7 @@ Param
     #Load and connecto to the O365 Compliance center
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
+    [Alias("UCC")] 
     [switch]$Compliance = $false,
 
     #Connect to Azure Rights Management
