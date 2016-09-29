@@ -80,13 +80,27 @@ How to Update
 Periodically update this and other scripts by running `update-script`
 
 Credential Management
-=======================
+=====================
+
+Connect-O365 allows you to store and re-use the accounts and passwords , so youcan focus  on the task at hand.
+The credentials are defely stored in the Windows Credential Manager.
+
+When looking up the credentials from the credential manager matches can be made either on
+-   The Username (`Connect-O365 -Account <serviceadmin@contoso.com>`) [Default]  
+    
+-   A label you assign in hte Credential Manager  (`Connect-O365 -Account ProductionAdmin`)
+
+-   The target network address (`Connect-O365 -Account https://consoso.sharepoint.com`)
+    
+
 
 Credentials can be used from 2 locations:
 
--   A folder in the userprofile ($env:userProfile)
-
 -   Generic credentials stored in the Windows credential manager
+-   A folder in the userprofile ($env:userProfile)  [Will be Depricated]
+
+# *Sample :* 
+
 
 Store or update the credentials for admin@acontoso.com
 
@@ -94,9 +108,9 @@ Store or update the credentials for admin@acontoso.com
 
 Use the credential stored in the credential manager using the &gt;`Connect-O365 -Account Production`
 
-Both credential stores can be udated (new password) by specifying the -Persist parameter
+Both credential stores can be udated with a new account or new password by specifying the -Persist parameter
 
-New credentails that are created are stored in the Windows Credential Manager.
+New credentails that are created are stored in the Windows Credential Manager, as this method is prefered over the file based store.
 
 To manually create credentials in the windows credential manager use :
 
@@ -104,20 +118,19 @@ Control Panel &gt; Credential Manager &gt; Windows Credentials &gt; Generic Cred
 
 The network address can be used as an Alias
 
-# *Sample :*
+# *Sample : Label*
 
     Internet or network address : Production
     Username                    : serviceadmin@contoso.com
     Password                    : pass@word1
 
-When looking up the credentials from the credential manager matches can be made either on
+# *Sample : sharepoint*
 
+    Internet or network address : https://contoso.sharepoint.com
+    Username                    : serviceadmin@contoso.com
+    Password                    : pass@word1 
 
--   The Username (`Connect-O365 -Account `<serviceadmin@contoso.com>)
--   The target network address (`Connect-O365 -Account Production`)
-
-
-
+Note that this type of credential is also used by the PnP Powershell cmdlets to retrieve the credentials when connecting to SharePoint Online. 
 
 Code of Conduct
 ===============

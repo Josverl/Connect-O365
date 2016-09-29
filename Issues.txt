@@ -1,0 +1,24 @@
+BUG: cannot use account withouth saved password 
+	> Must use -persist 
+	Cause: error in logic 
+
+BUG: fix broken dependency on pnppowershell
+
+BUG: $tenantname not avialable/filled in all cases (-UCC) 
+
+Feature: Install module on demand 
+	Ask to install a module if it is used , rather than thowing an error 
+
+Feature: Install per Module , rather than all modules \
+
+Feature: Support more Proxy configurations for Remote powershell
+
+Refactor: Break up into Script + Depending module(s) 
+	
+Feature: Disconnect-O365 cmdlet
+
+Feature : install.ps1
+
+NUGET PowerShell Scripts
+When a package carries an install.ps1 file within its \tools folder, 
+the script will be run after package installation. An uninstall.ps1 is executed before uninstallation. Lastly, init.ps1 is executed every time the solution is opened (assuming the NuGet PowerShell Console is open). Target framework filters apply to this folder too.
