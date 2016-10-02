@@ -11,7 +11,7 @@
     #>
     $script:MSG_Cred = 'Please enter the Tenant Admin or Service Admin password'
     $script:MSG_CredCancel = 'No password entered or user canceled'
-    function global:Store-myCreds {
+    function Store-myCreds {
     Param (
             # The Account or Username 
             [Parameter()]
@@ -37,7 +37,7 @@
     .EXAMPLE
        if ( Test-MyCreds -UserName Admin@contoso.com ) { "credentials found" }
     #>
-    function script:Test-myCreds {
+    function Test-myCreds {
     param( 
             # The Account or Username 
             [Parameter()]
@@ -73,7 +73,7 @@
     .EXAMPLE
        Another example of how to use this cmdlet
     #>
-    function global:Get-myCreds {
+    function Get-myCreds {
         Param
         (
             # The Account or Username 
@@ -116,7 +116,7 @@
         retrieve-credentials -account Production
 
     #>
-    function global:retrieve-credentials {
+    function Retrieve-Credentials {
         Param
         (
             # The Account or Username 
@@ -171,15 +171,12 @@
                     $admincredentials = Get-StoredCredential -Target $stored.Targetname -Type 'GENERIC'
                 } else {
                     #If not found, and if no -Persist then old fashioned 
-                    $admincredentials= Get-Credential -UserName $name -Message $Script:MSG_Cred
+                    write-verbose "Ask for credential"
+                    $admincredentials = Get-Credential -UserName $Account -Message $Script:MSG_Cred 
                 }
-
-
-                
-
             }
         }
+        #write-verbose "Cred : $($admincredentials.UserName)" -Verbose
         return $admincredentials
     }
-
 
