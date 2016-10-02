@@ -1,11 +1,11 @@
 Connect-O365
 ==============
 
-Connect to Office 365 and most related services and get ready to admin with Powershell.
+Connect to Office 365 and most related services and get ready to admin with PowerShell.
 
-I created this script because I found it (too) confusing to remember the different options to install and connect connect to the different Office 365 workloads. In my line of work this is also something I frequently need to explain to others, so they can repeat this on other workstations. Also I found it tedious to need to enter the credentials for the different test accounts over and over, as well as the inability to use this from other scripts withouth re-writing nearly the same code over and over.
+I created this script because I found it (too) confusing to remember the different options to install and connect  to the different Office 365 workloads. In my line of work this is also something I frequently need to explain to others, so they can repeat this on other workstations. Also I found it tedious to need to enter the credentials for the different test accounts over and over, as well as the inability to use this from other scripts without re-writing nearly the same code over and over.
 
-What initially started as a few lines, has grown over time to a script that is quite usefull, especially in combination with the ability of PowerShell 5 (and earlier versions) to easily add and update scripts via the Powershell gallery.
+What initially started as a few lines, has grown over time to a script that is quite useful, especially in combination with the ability of PowerShell 5 (and earlier versions) to easily add and update scripts via the Powershell gallery.
 
 The main use cases are :
 
@@ -33,7 +33,7 @@ Note that the script support autocomplete for the -Account parameter using \[Tab
 How to Install
 --------------
 
-Install to the *machine* by installing from an Admin elevated Powershell :
+Install to the *machine* by installing from an Admin elevated PowerShell :
 
 &gt;`Install-Script -Name Connect-O365`
 
@@ -54,7 +54,7 @@ Note that the script support autocomplete for the -Account parameter using [Tab]
 
 &gt;`Connect-O365 -Install`
 
-The install option will determine the modules to install. The exact modules to install are stored in a psd1 document that is stored on Github. Currently this contains the following modules :
+The install option will determine the modules to install. The exact modules to install are stored in a .psd1 restricted langage document that is stored on Github. Currently this contains the following modules :
 
 -   Microsoft Online Services Sign-In Assistant for IT Professionals
 
@@ -66,9 +66,9 @@ The install option will determine the modules to install. The exact modules to i
 
 -   Azure Rights Management Administration Tool
 
-This document contains a list of the moduldes to install, the required versions, the download locations and any specific installation options that are needed for a smooth installation. The required powershell module files are downloaded to the systems download folder. Before installation the digital certificate of all downloaded files is verified to make sure the installers are signed by Microsoft, before the installation of each module is started.
+This document contains a list of the modules to install, the required versions, the download locations and any specific installation options that are needed for a smooth installation. The required powershell module files are downloaded to the systems download folder. Before installation the digital certificate of all downloaded files is verified to make sure the installers are signed by Microsoft, before the installation of each module is started.
 
-Dependend Modules that are published on the PowerShell Gallery are not subject to certificate verification.
+Dependent Modules that are published on the PowerShell Gallery are not subject to certificate verification.
 
 -   OfficeDevPnP.PowerShell, Module OfficeDevPnP.PowerShell.V16.Commands
 
@@ -82,13 +82,13 @@ Periodically update this and other scripts by running `update-script`
 Credential Management
 =====================
 
-Connect-O365 allows you to store and re-use the accounts and passwords , so youcan focus  on the task at hand.
-The credentials are defely stored in the Windows Credential Manager.
+Connect-O365 allows you to store and re-use the accounts and passwords , so you can focus  on the task at hand.
+The credentials are safely stored in the Windows Credential Manager.
 
 When looking up the credentials from the credential manager matches can be made either on
 -   The Username (`Connect-O365 -Account <serviceadmin@contoso.com>`) [Default]  
     
--   A label you assign in hte Credential Manager  (`Connect-O365 -Account ProductionAdmin`)
+-   A label you assign in the Credential Manager  (`Connect-O365 -Account ProductionAdmin`)
 
 -   The target network address (`Connect-O365 -Account https://consoso.sharepoint.com`)
     
@@ -97,20 +97,20 @@ When looking up the credentials from the credential manager matches can be made 
 Credentials can be used from 2 locations:
 
 -   Generic credentials stored in the Windows credential manager
--   A folder in the userprofile ($env:userProfile)  [Will be Depricated]
+-   A folder in the userprofile ($env:userProfile)  [Will be Deprecated]
 
 # *Sample :* 
 
 
-Store or update the credentials for admin@acontoso.com
+Store or update the credentials for admin@contoso.com
 
 &gt;`Connect-O365 -Account admin@contoso.com -persist`
 
 Use the credential stored in the credential manager using the &gt;`Connect-O365 -Account Production`
 
-Both credential stores can be udated with a new account or new password by specifying the -Persist parameter
+Both credential stores can be updated with a new account or new password by specifying the -Persist parameter
 
-New credentails that are created are stored in the Windows Credential Manager, as this method is prefered over the file based store.
+New credentials that are created are stored in the Windows Credential Manager, as this method is prefered over the file based store.
 
 To manually create credentials in the windows credential manager use :
 
@@ -124,7 +124,7 @@ The network address can be used as an Alias
     Username                    : serviceadmin@contoso.com
     Password                    : pass@word1
 
-# *Sample : sharepoint*
+# *Sample : SharePoint*
 
     Internet or network address : https://contoso.sharepoint.com
     Username                    : serviceadmin@contoso.com
