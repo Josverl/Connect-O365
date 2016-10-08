@@ -547,104 +547,25 @@ Process{
         }
     }
 
-    <#
-    .Synopsis
-       import a .psd1 file from a url ,( Github) 
-    .DESCRIPTION
-       import a .psd1 file from a url 
-       and perform a safe expansion using a number of predefined variables.
-    #>
-    function Import-DataFile
-    {
-        param (
-            [Parameter(Mandatory)]
-            [string] $Url
-        )
-        try
-        {
-            #setup variables to use during configuration expansion
-            $CPU = $env:PROCESSOR_ARCHITECTURE
-            switch ($env:PROCESSOR_ARCHITECTURE)
-            {
-                'x86'   {$xcpu = 'x86' ; $bitness='32';}
-                'AMD64' {$xcpu = 'x64' ; $bitness='64'; }
-            }
-            $Filename = $URL.Split("/")[-1]
-            try {   wget -Uri $URL -OutFile "$env:TEMP\$Filename" } 
-            #failsafe if IE never been run 
-            catch { wget -Uri $URL -OutFile "$env:TEMP\$Filename" -UseBasicParsing  } 
-
-            $content = Get-Content -Path "$env:TEMP\$Filename" -Raw -ErrorAction Stop
-            Remove-Item "$env:TEMP\$Filename" -Force
-            $scriptBlock = [scriptblock]::Create($content)
-
-            # This list of approved cmdlets and variables is what is used when you import a module manifest
-            [string[]] $allowedCommands = @( 'ConvertFrom-Json', 'Join-Path', 'Write-Verbose', 'Write-Host' )
-            #list of pedefined variables that can be used
-            [string[]] $allowedVariables = @('language' ,'LangCountry', 'cpu','xcpu' , 'bitness' )
-            # This is the important line; it makes sure that your file is safe to run before you invoke it.
-            # This protects you from injection attacks / etc, if someone has placed malicious content into
-            # the data file.
-            $scriptBlock.CheckRestrictedLanguage($allowedCommands, $allowedVariables, $true)
-            #
-            return & $scriptBlock
-        }
-        catch
-        {
-            throw
-        } 
-    }
-
-
     If ( $PsCmdlet.ParameterSetName -eq "Install") {
         Write-Host -f Yellow "Starting Installation"
     
         #always perform module test after installation 
         $test = $true
-    # Get the location of the downloads folder 
-    # Ref : http://stackoverflow.com/questions/25049875/getting-any-special-folder-path-in-powershell-using-folder-guid 
-    Add-Type @"
-        using System;
-        using System.Runtime.InteropServices;
-
-        public static class KnownFolder
-        {
-            public static readonly Guid Documents = new Guid( "FDD39AD0-238F-46AF-ADB4-6C85480369C7" );
-            public static readonly Guid Downloads = new Guid( "374DE290-123F-4565-9164-39C4925E467B" );
-        }
-        public class shell32
-        {
-            [DllImport("shell32.dll")]
-            private static extern int SHGetKnownFolderPath(
-                    [MarshalAs(UnmanagedType.LPStruct)] 
-                    Guid rfid,
-                    uint dwFlags,
-                    IntPtr hToken,
-                    out IntPtr pszPath
-                );
-                public static string GetKnownFolderPath(Guid rfid)
-                {
-                IntPtr pszPath;
-                if (SHGetKnownFolderPath(rfid, 0, IntPtr.Zero, out pszPath) != 0)
-                    return ""; // add whatever error handling you fancy
-                string path = Marshal.PtrToStringUni(pszPath);
-                Marshal.FreeCoTaskMem(pszPath);
-                return path;
-                }
-        }
-"@ 
         #Lookup downloads location
         if ($Folder -eq $null ) {$folder = [shell32]::GetKnownFolderPath([KnownFolder]::Downloads) }
         write-verbose "Download folder : $folder"
 
+
+        Get-O365ModuleFile
         $operation = "Load the required module information from the configuration file"
         write-verbose $Operation
         Write-Progress "Install External PowerShell modules to connect to Office 365" `
             -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
 
         #load the required modules from a configuration file on GitHub
-        $Components = Import-DataFile -url 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/RequiredModuleInfo.psd1' 
-    
+        $Components = Import-DataFile -url 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/RequiredModuleInfo.psd1'
+
         #figure out the progress rate 
         $script:Prog_step = 100 / $components.AdminComponents.Count
         $script:Prog_pct = $script:Prog_step
@@ -655,6 +576,8 @@ Process{
         Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | sort -Property DisplayName | select PSChildName, DisplayName, Publisher, DisplayVersion
         #>
         foreach ($c  in $Components.AdminComponents) {
+
+
             $operation = "Install $($C.Name)"
             write-verbose $Operation
             Write-Progress "Install External PowerShell modules to connect to Office 365" `
