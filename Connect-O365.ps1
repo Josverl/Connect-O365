@@ -1,6 +1,6 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.7.5
+.VERSION 1.7.8
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
@@ -13,6 +13,7 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
+v1.7.8  Add -Credential Parameter, refactored to modules 
 v1.7.2  Update tests for changed external dependency name SharePointPnPPowerShellOnline
 V1.7.1  Minor improvements in account lookup     
 V1.6.9  Updated changed external dependency name SharePointPnPPowerShellOnline
@@ -21,7 +22,7 @@ V1.6.7  Correct script for CredentialManager 2.0.0.0 parameter changes
 V1.6.5  Add autocompletion for saved accounts and credential manager, change default for -AAD, improve connection error checks
 V1.6.3  Add progress bars
 V1.6.2  Resolve multiple Aliases per parameter bug on some PS flavors, 
-V1.6.1  Add test for Sign-in Assistant,Add pro-acive check for modules during administration.
+V1.6.1  Add test for Sign-in Assistant,Add pro-active check for modules during administration.
 V1.6.0  Publish to Github
 v1.5.9  update install OS version match logic to use [System.Environment]::OSVersion.Version, correct DefaultParameterSetName=”Admin", Add -test option to check correct installation
 V1.5.8  Seperate configuration download info from script, Retrieve Module info from github.
@@ -36,7 +37,7 @@ V1.1    Initial publication to scriptcenter
 #>
 
 #Requires -Module @{ModuleName="CredentialManager";ModuleVersion="2.0"}
-#Requires -Module @{ModuleName='ConnectO365';ModuleVersion="0.3"}
+#Requires -Module @{ModuleName='ConnectO365';ModuleVersion="0.6"}
 
 <# #Requires -Module SharePointPNPPowershellOnline #>
 
@@ -97,50 +98,64 @@ Param
 <# valid for Admin and Close #>
     #Connect to Azure AD aka MSOnline 
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("AzureAD")] 
     [switch]$AAD = $false, 
 
     #Connect to Exchange Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("EXO")] 
     [switch]$Exchange = $false, 
 
     #Connect to Skype Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("CSO","Lync")] 
     [switch]$Skype = $false, 
     
     #Connecto to SharePoint Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("SPO","ODFB")] 
     [switch]$SharePoint = $false, 
 
     #Connecto to SharePoint Online PNP
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("PNP")] 
     [switch]$SharePointPNP = $false, 
         
     #Load and connecto to the O365 Compliance center
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("UCC")] 
     [switch]$Compliance = $false,
 
     #Connect to Azure Rights Management
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("RMS","AzureRMS")] 
     [switch]$AADRM = $false,
 
     #All Services
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [switch]$All = $false,
+
+<# parameterset Creds #>
+    # Specify the (Admin) Account to authenticate with
+    [Parameter(ParameterSetName="Credential",Mandatory=$true,Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [PSCredential]$Credential,
 
 <# parameterset Close #>
     #Close all open Connections
@@ -148,7 +163,7 @@ Param
     [switch]$Close = $false,
 
 
-<# parameterset INstall #>
+<# parameterset Install #>
     #Download and Install the supporting Modules
     [Parameter(ParameterSetName="Install",Mandatory=$true)]
     [switch]$Install,
@@ -178,19 +193,20 @@ Param
 #Mixed parameterset
 
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Test",Mandatory=$false)]
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [switch]$PassThrough = $false,
 
-    # Save the account credentials for later use        
+    # Test for installed external modules         
     [Parameter(ParameterSetName="Test",Mandatory=$false)]    
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
+    [Alias("Verify")]
     [switch]$Test = $false, 
 
-    #Force asking for, and optionally force the Perstistance of the credentials.
-#   [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    #Force download and re-installation of modules.
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
-    [switch]$Force = $false
+    [switch]$Repair = $false
 )
 
 DynamicParam {
@@ -241,11 +257,12 @@ begin {
     If ( $PsCmdlet.ParameterSetName -ieq "Close" ) 
     {
         if ( $all -eq $false -and  $exchange -eq $false -and $skype -eq $false -and $Compliance -eq $false  -and $SharePoint -eq $false -and $AADRM -eq $false) {
-            Write-Verbose "Online Workload specified, assume all workloads"
+            Write-Verbose "Online Workload not specified, assume all workloads"
             $all = $true
         }
     }
-    If ( $PsCmdlet.ParameterSetName -iin "Close","Admin" ) 
+
+    If ( $PsCmdlet.ParameterSetName -iin "Close","Admin","Credential" ) 
     {
         if ( -not ( $Exchange -or $Skype -or $Compliance -or $SharePoint -or $SharePointPNP -or $AADRM ))
             { $AAD = $true } # default to AAD Only
@@ -269,6 +286,8 @@ begin {
 }
 
 Process{ 
+    import-module connecto365 -DisableNameChecking -WarningAction SilentlyContinue
+    
     # Optionally close any prior sessions
     If ( $PsCmdlet.ParameterSetName -eq "Close") {
          Try {
@@ -333,15 +352,37 @@ Process{
         }
     }
 
-    # Admin , the main part and purpose 
     If ( $PsCmdlet.ParameterSetName -eq "Admin") {
-        $operation = "Retrieve Credentials"
+        $operation = "Retrieve stored Account Credential"
+        write-verbose $Operation
+        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+        #retrieve admin credentials for filestore and secure store 
+        $admincredentials = Retrieve-Credentials -account $account -Persist:$persist
+
+    }
+    
+    If ( $PsCmdlet.ParameterSetName -eq "Credential") {
+        $operation = "Retrieve PSCredential"
+        write-verbose $Operation
+        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+
+        if ($Credential){
+            Write-verbose "Credential has been provided"
+            $admincredentials = $Credential
+        } else {
+            Write-verbose "Need to ask for credential"
+            $admincredentials = Retrieve-Credentials -account $Credential 
+        }
+    }
+
+    # Admin , the main part and purpose 
+    If ( $PsCmdlet.ParameterSetName -iin "Admin","Credential" ) {
+        $operation = "Connecting to O365 Services"
         write-verbose $Operation
         Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
         $script:Prog_pct += $prog_step        
-    
-        #retrieve admin credentials for filestore and secure store 
-        $admincredentials = retrieve-credentials -account $account -Persist:$persist
+
+
         if ($admincredentials -eq $null){ 
             Write-Verbose "No stored credentials could be found"
             throw "A valid Tenant Admin Account is required." 

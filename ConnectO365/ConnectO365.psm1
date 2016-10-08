@@ -7,11 +7,11 @@
        Retrieve credentials using the UI and store these in a file in the userprofile\creds folder
        the credentials are also returned.
     .EXAMPLE
-       Store-MyCreds -UserName Admin@contoso.com
+       Set-myCreds -UserName Admin@contoso.com
     #>
     $script:MSG_Cred = 'Please enter the Tenant Admin or Service Admin password'
     $script:MSG_CredCancel = 'No password entered or user canceled'
-    function Store-myCreds {
+    function Set-myCreds {
     Param (
             # The Account or Username 
             [Parameter()]
@@ -94,7 +94,7 @@
         } else {
             if ($persist -and -not [string]::IsNullOrEmpty($Account)) {
                 WRITE-VERBOSE 'Ask and store new credentials'
-                $admincredentials  = Store-myCreds $Account
+                $admincredentials  = Set-myCreds $Account
                 return $admincredentials
             } else {
                 WRITE-VERBOSE 'Ask for credentials'
@@ -108,15 +108,15 @@
        Retrieves credentials that are stored either in the \creds folder, or in the windows storedcredentials 
        Windows stored credentials depend on an external module to be in installed (CredentialManager) 
     .EXAMPLE
-        retrieve-credentials -account admin@contso.com 
+        RetrieveCredentials -account admin@contso.com 
     .EXAMPLE
-        retrieve-credentials -account admin@contso.com -persist
+        RetrieveCredentials -account admin@contso.com -persist
     .EXAMPLE
         #retrieve a credentian using a alias from the credential manager
-        retrieve-credentials -account Production
+        RetrieveCredentials -account Production
 
     #>
-    function Retrieve-Credentials {
+    function RetrieveCredentials {
         Param
         (
             # The Account or Username 
