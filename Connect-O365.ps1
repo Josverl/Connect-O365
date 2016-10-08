@@ -357,7 +357,7 @@ Process{
         write-verbose $Operation
         Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
         #retrieve admin credentials for filestore and secure store 
-        $admincredentials = Retrieve-Credentials -account $account -Persist:$persist
+        $admincredentials = RetrieveCredentials -account $account -Persist:$persist
 
     }
     
@@ -371,7 +371,7 @@ Process{
             $admincredentials = $Credential
         } else {
             Write-verbose "Need to ask for credential"
-            $admincredentials = Retrieve-Credentials -account $Credential 
+            $admincredentials = RetrieveCredentials -account $Credential 
         }
     }
 

@@ -26,7 +26,7 @@ Describe "$here\ConnectO365 Module" {
             Test-Path Function:\Get-myCreds| Should Be $true
             Test-Path Function:\Set-MyCreds| Should Be $true
             Test-Path Function:\Test-myCreds| Should Be $true
-            Test-Path Function:\Retrieve-Credentials| Should Be $true
+            Test-Path Function:\RetrieveCredentials| Should Be $true
         }
         
         It "2. Test returns true for existing FILE accounts "  {
@@ -47,7 +47,7 @@ Describe "$here\ConnectO365 Module" {
     Context "Stored Credentials" {
         It "4. can retrieve an existing account from CredMan -Persist | persist=false " {
             $x = New-StoredCredential -Comment "TEST Connect-O365" -Persist ENTERPRISE -Target $Tester -Type GENERIC -Credentials $TestCred 
-            $r = Retrieve-Credentials -Account $Tester -Persist:$false 
+            $r = RetrieveCredentials -Account $Tester -Persist:$false 
             $r.UserName | Should Be $Tester
             
         }
@@ -66,7 +66,7 @@ Describe "$here\ConnectO365 Module" {
             Remove-Item "$env:USERPROFILE\creds\$Tester.txt" -Force -ErrorAction SilentlyContinue
             $x = New-StoredCredential -Comment "TEST Connect-O365" -Persist ENTERPRISE -Target $Tester -Type GENERIC -Credentials $TestCred 
 
-            $r = Retrieve-Credentials -Account $Tester -Persist:$true
+            $r = RetrieveCredentials -Account $Tester -Persist:$true
             $r| Should not Be $null
             $r.username | Should be 'CredentialStoreTester1@verlinde.us'
             $r.GetNetworkCredential().Password | should be 'pass@word1'
@@ -80,7 +80,7 @@ Describe "$here\ConnectO365 Module" {
             Remove-StoredCredential -Target $Tester -ErrorAction SilentlyContinue
             #$x = New-StoredCredential -Comment "TEST Connect-O365" -Persist ENTERPRISE -Target $Tester -Type GENERIC -Credentials $TestCred 
 
-            $r = Retrieve-Credentials -Account $Tester -Persist:$false
+            $r = RetrieveCredentials -Account $Tester -Persist:$false
             $r| Should not Be $null
             $r.username | Should be 'CredentialStoreTester1@verlinde.us'
             $r.GetNetworkCredential().Password | should be 'pass@word1'
@@ -94,7 +94,7 @@ Describe "$here\ConnectO365 Module" {
 
         It '7. can retrieve an non-stored account, asks for input and returns $null on cancel | persist:$false'  {
             Remove-StoredCredential -Target $Tester -ErrorAction SilentlyContinue
-            $r = Retrieve-Credentials -Account $Tester 
+            $r = RetrieveCredentials -Account $Tester 
             $r| Should Be $null
             Assert-MockCalled Get-Credential -Exactly 1 -Scope It -ModuleName ConnectO365
         }
@@ -109,7 +109,7 @@ Describe "$here\ConnectO365 Module" {
 
          It '8. can Save retrieve an non-stored account, asks for input and returns a valid cred | persist:$true'  {
             Remove-StoredCredential -Target $Tester -ErrorAction SilentlyContinue
-            $r = Retrieve-Credentials -Account $Tester -Persist
+            $r = RetrieveCredentials -Account $Tester -Persist
             $r| Should not Be $null
             $r.UserName | Should Be 'CredentialStoreTester1@verlinde.us'
             $r.GetNetworkCredential().Password | should be 'pass@word1'
@@ -128,7 +128,7 @@ Describe "$here\ConnectO365 Module" {
            
 
             Remove-StoredCredential -Target $Tester -ErrorAction SilentlyContinue
-            $r = Retrieve-Credentials -Account $Tester -Persist
+            $r = RetrieveCredentials -Account $Tester -Persist
             $r| Should not Be $null
             $r.UserName | Should Be 'CredentialStoreTester2@verlinde.us'
             $r.GetNetworkCredential().Password | should be 'pass@word2'

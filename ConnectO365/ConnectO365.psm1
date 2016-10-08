@@ -1,6 +1,11 @@
-﻿
-
-
+﻿<#
+.SYNOPSIS
+    module for connect-o365 
+.DESCRIPTION
+    Authentication functions
+.NOTES
+    General notes
+#>
 
     <#
     .Synopsis

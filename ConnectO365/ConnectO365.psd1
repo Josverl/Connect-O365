@@ -6,7 +6,7 @@
     RootModule = 'ConnectO365.psm1'
 
     # Version number of this module.
-    ModuleVersion = '0.6'
+    ModuleVersion = '0.8'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -97,7 +97,7 @@
             # A URL to an icon representing this module.
             IconUri = 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/Connect-O365'
             # ReleaseNotes of this module
-            ReleaseNotes = 'Connect-O365 Refactoring'
+            ReleaseNotes = 'Connect-O365 Refactoring, removed Module Signing'
 
         } # End of PSData hashtable
 
