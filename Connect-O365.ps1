@@ -249,6 +249,9 @@ DynamicParam {
     }
 }
 begin {
+    
+
+
     # Verbose log of the input parameters
     Write-Verbose -Message 'Connect-O365 Parameters :'
     $PSBoundParameters.GetEnumerator() | ForEach-Object { Write-Verbose -Message "$($PSItem)" }

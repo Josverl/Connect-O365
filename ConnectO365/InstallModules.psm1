@@ -1,3 +1,23 @@
+
+
+
+
+function Get-O365ModuleFile  {
+    [CmdletBinding()]
+    [OutputType([scriptblock])]    
+    param()    
+
+    $operation = "Load the required module information from the configuration file"
+    write-verbose $Operation
+    Write-Progress "Install External PowerShell modules to connect to Office 365" `
+        -CurrentOperation $Operation -PercentComplete 10 ; 
+
+    #load the required modules from a configuration file on GitHub
+    $Components = Import-DataFile -url 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/RequiredModuleInfo.psd1' 
+}
+
+
+
 <#
 .Synopsis
     import a .psd1 file from a url ,( Github) 
@@ -7,6 +27,8 @@
 #>
 function Import-DataFile
 {
+    [CmdletBinding()]
+    [OutputType([scriptblock])]
     param (
         [Parameter(Mandatory)]
         [string] $Url
@@ -97,19 +119,6 @@ Add-Type @"
     }
 "@ 
 
-<#
-function Get-O365ModuleFile  {
-[CmdletBinding()]
-#[OutputType([String])]
-param(
-)    
-    $operation = "Load the required module information from the configuration file"
-    write-verbose $Operation
-    Write-Progress "Install External PowerShell modules to connect to Office 365" `
-        -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
 
-    #load the required modules from a configuration file on GitHub
-    $Components = Import-DataFile -url 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/RequiredModuleInfo.psd1' 
-}
-#>
-
+Export-ModuleMember -Cmdlet 'Import-DataFile' 
+Export-ModuleMember -Cmdlet 'Get-O365ModuleFile'  

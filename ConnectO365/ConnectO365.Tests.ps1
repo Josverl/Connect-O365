@@ -1,13 +1,17 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-#$sut = (Split-Path -Leaf $MyInvocation.MyCommand.Path) -replace '\.Tests\.', '.'
-#cd C:\Users\josverl\OneDrive\PowerShell\Dev\Connect-O365
+$sut = (Split-Path -Leaf $MyInvocation.MyCommand.Path) -replace '\.Tests\.', '.'
+$sut = $sut -replace '.ps1', '.psd1'
 
+#$ModuleName = (Split-Path $sut -Leaf).Split('.')[0]
+$ModuleName = 'ConnectO365'
 
-#Having the Module installed from PSGallery breaks the Mocking, or the returned values from the mocks, possibly caused by Signing
-#Get-InstalledModule -Name 'ConnectO365' -ErrorAction SilentlyContinue | Uninstall-Module -Force -Verbose
+#Having multiple modules loaded breaks the mocking, remove all earlier versions
+get-module -Name connecto365 -all  | remove-module 
 
+#Now load the fresh Module
+Import-Module (Join-path $here $ModuleName) -Force -DisableNameChecking
 
-Import-Module (Join-path $here ConnectO365) -Force -DisableNameChecking
+#and some supporting mods 
 Import-Module credentialmanager 
 
 #test Credentials 
@@ -19,14 +23,16 @@ $TestCred2 = New-Object System.Management.Automation.PsCredential($Tester,$TestP
 
 Describe "$here\ConnectO365 Module" {
 
-
     Context " File credentials" { 
 
-        It "1. defines all the functions" {
-            Test-Path Function:\Get-myCreds| Should Be $true
-            Test-Path Function:\Set-MyCreds| Should Be $true
-            Test-Path Function:\Test-myCreds| Should Be $true
-            Test-Path Function:\RetrieveCredentials| Should Be $true
+        It "1. the module defines all the public functions" {
+            $MFT = Test-ModuleManifest -Path $sut 
+
+            $mft.ExportedFunctions.ContainsKey("Get-myCreds") | Should Be $true
+            $mft.ExportedFunctions.ContainsKey("Set-myCreds") | Should Be $true
+            $mft.ExportedFunctions.ContainsKey("Test-myCreds") | Should Be $true
+
+            $mft.ExportedFunctions.ContainsKey("RetrieveCredentials") | Should Be $true
         }
         
         It "2. Test returns true for existing FILE accounts "  {

@@ -65,15 +65,22 @@
 ###############################################################################
 Properties {
     # The name of your module should match the basename of the PSD1 file.
-    $ModuleName = (Get-Item $PSScriptRoot\*.psd1 | Foreach-Object {$null = Test-ModuleManifest -Path $_ -ErrorAction SilentlyContinue; if ($?) {$_}})[0].BaseName
+    if ($PSScriptRoot ) { 
+        $BasePath = $PSScriptRoot 
+    } else {
+        #Handle run in ISE 
+        $BasePath = split-path -parent $psISE.CurrentFile.Fullpath
+    }
+
+    $ModuleName = (Get-Item $BasePath\*.psd1 | Foreach-Object {$null = Test-ModuleManifest -Path $_ -ErrorAction SilentlyContinue; if ($?) {$_}})[0].BaseName
 
     # Path to the release notes file.  Set to $null if the release notes reside in the manifest file.
-    # $ReleaseNotesPath = "$PSScriptRoot\ReleaseNotes.md"
+    # $ReleaseNotesPath = "$BasePath\ReleaseNotes.md"
     $ReleaseNotesPath = $null
 
     # The directory used to publish the module from.  If you are using Git, the
     # $PublishRootDir should be ignored if it is under the workspace directory.
-    $PublishRootDir = "$PSScriptRoot\Release"
+    $PublishRootDir = "$BasePath\Release"
     $PublishDir     = "$PublishRootDir\$ModuleName"
 
     # The following items will not be copied to the $PublishDir.
@@ -150,11 +157,12 @@ Task PublishImpl -depends Test -requiredVariables EncryptedApiKeyPath, PublishDi
 
 Task Test -depends Build {
     Import-Module Pester
-    Invoke-Pester $PSScriptRoot
+    Invoke-Pester -Script .\InstallModules.tests.ps1
+    Invoke-Pester -Script .\Module.Tests.ps1
 }
 
 Task Build -depends Clean, Init -requiredVariables PublishDir, Exclude, ModuleName {
-    Copy-Item -Path $PSScriptRoot\* -Destination $PublishDir -Recurse -Exclude $Exclude
+    Copy-Item -Path $BasePath\* -Destination $PublishDir -Recurse -Exclude $Exclude
 
     # Get contents of the ReleaseNotes file and update the copied module manifest file
     # with the release notes.
@@ -169,7 +177,7 @@ Task Clean -requiredVariables PublishRootDir {
     # Sanity check the dir we are about to "clean".  If $PublishRootDir were to
     # inadvertently get set to $null, the Remove-Item commmand removes the
     # contents of \*.  That's a bad day.  Ask me how I know?  :-(
-    if ((Test-Path $PublishRootDir) -and $PublishRootDir.Contains($PSScriptRoot)) {
+    if ((Test-Path $PublishRootDir) -and $PublishRootDir.Contains($BasePath)) {
         Remove-Item $PublishRootDir\* -Recurse -Force
     }
 }
@@ -180,111 +188,8 @@ Task Init -requiredVariables PublishDir {
     }
 }
 
-Task RemoveKey -requiredVariables EncryptedApiKeyPath {
-    if (Test-Path -LiteralPath $EncryptedApiKeyPath) {
-        Remove-Item -LiteralPath $EncryptedApiKeyPath
-    }
-}
-
-Task StoreKey -requiredVariables EncryptedApiKeyPath {
-    $nuGetApiKeyCred = PromptUserForNuGetApiKeyCredential -DestinationPath $EncryptedApiKeyPath
-    "The NuGetApiKey has been stored in $EncryptedApiKeyPath"
-}
-
-Task ShowKey -requiredVariables EncryptedApiKeyPath {
-    if ($NuGetApiKey) {
-        "The embedded (partial) NuGetApiKey is: $($NuGetApiKey[0..7])"
-    }
-    else {
-        $NuGetApiKey = LoadAndUnencryptNuGetApiKey -Path $EncryptedApiKeyPath
-        "The stored (partial) NuGetApiKey is: $($NuGetApiKey[0..7])"
-    }
-
-    "To see the full key, use the task 'ShowFullKey'"
-}
-
-Task ShowFullKey -requiredVariables EncryptedApiKeyPath {
-    if ($NuGetApiKey) {
-        "The embedded NuGetApiKey is: $NuGetApiKey"
-    }
-    else {
-        $NuGetApiKey = LoadAndUnencryptNuGetApiKey -Path $EncryptedApiKeyPath
-        "The stored NuGetApiKey is: $NuGetApiKey"
-    }
-}
-
 Task ? -description 'Lists the available tasks' {
     "Available tasks:"
     $PSake.Context.Peek().Tasks.Keys | Sort-Object
 }
 
-###############################################################################
-# Helper functions
-###############################################################################
-function PromptUserForNuGetApiKeyCredential {
-    [Diagnostics.CodeAnalysis.SuppressMessage("PSProvideDefaultParameterValue", '')]
-    param(
-        [Parameter()]
-        [ValidateNotNullOrEmpty()]
-        [string]
-        $DestinationPath
-    )
-
-    $message = "Enter your NuGet API Key in the password field (or nothing, this isn't used yet in the preview)"
-    $nuGetApiKeyCred = Get-Credential -Message $message -UserName "ignored"
-
-    if ($DestinationPath) {
-        EncryptAndSaveNuGetApiKey -NuGetApiKeySecureString $nuGetApiKeyCred.Password -Path $DestinationPath
-    }
-
-    $nuGetApiKeyCred
-}
-
-function EncryptAndSaveNuGetApiKey {
-    [Diagnostics.CodeAnalysis.SuppressMessage("PSAvoidUsingConvertToSecureStringWithPlainText", '')]
-    [Diagnostics.CodeAnalysis.SuppressMessage("PSProvideDefaultParameterValue", '')]
-    param(
-        [Parameter(Mandatory, ParameterSetName='SecureString')]
-        [ValidateNotNull()]
-        [SecureString]
-        $NuGetApiKeySecureString,
-
-        [Parameter(Mandatory, ParameterSetName='PlainText')]
-        [ValidateNotNullOrEmpty()]
-        [string]
-        $NuGetApiKey,
-
-        [Parameter(Mandatory)]
-        $Path
-    )
-
-    if ($PSCmdlet.ParameterSetName -eq 'PlainText') {
-        $NuGetApiKeySecureString = ConvertTo-SecureString -String $NuGetApiKey -AsPlainText -Force
-    }
-
-    $parentDir = Split-Path $Path -Parent
-    if (!(Test-Path -LiteralPath $parentDir)) {
-        $null = New-Item -Path $parentDir -ItemType Directory
-    }
-    elseif (Test-Path -LiteralPath $Path) {
-        Remove-Item -LiteralPath $Path
-    }
-
-    $NuGetApiKeySecureString | ConvertFrom-SecureString | Export-Clixml $Path
-    Write-Verbose "The NuGetApiKey has been encrypted and saved to $Path"
-}
-
-function LoadAndUnencryptNuGetApiKey {
-    [Diagnostics.CodeAnalysis.SuppressMessage("PSProvideDefaultParameterValue", '')]
-    param(
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [string]
-        $Path
-    )
-
-    $storedKey = Import-Clixml $Path | ConvertTo-SecureString
-    $cred = New-Object -TypeName PSCredential -ArgumentList 'jpgr',$storedKey
-    $cred.GetNetworkCredential().Password
-    Write-Verbose "The NuGetApiKey has been loaded and unencrypted from $Path"
-}

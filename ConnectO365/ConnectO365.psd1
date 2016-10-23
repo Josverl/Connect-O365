@@ -6,7 +6,7 @@
     RootModule = 'ConnectO365.psm1'
 
     # Version number of this module.
-    ModuleVersion = '0.8'
+    ModuleVersion = '0.8.2.1'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -27,13 +27,7 @@
     Description = 'Supporting functions for connect-0365 script'
 
     # Minimum version of the Windows PowerShell engine required by this module
-    # PowerShellVersion = ''
-
-    # Name of the Windows PowerShell host required by this module
-    # PowerShellHostName = ''
-
-    # Minimum version of the Windows PowerShell host required by this module
-    # PowerShellHostVersion = ''
+    PowerShellVersion = '3.0'
 
     # Minimum version of Microsoft .NET Framework required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
     # DotNetFrameworkVersion = ''
@@ -42,7 +36,7 @@
     # CLRVersion = ''
 
     # Processor architecture (None, X86, Amd64) required by this module
-    # ProcessorArchitecture = ''
+    ProcessorArchitecture = 'AMD64'
 
     # Modules that must be imported into the global environment prior to importing this module
     # RequiredModules = @()
@@ -53,20 +47,14 @@
     # Script files (.ps1) that are run in the caller's environment prior to importing this module.
     # ScriptsToProcess = @()
 
-    # Type files (.ps1xml) to be loaded when importing this module
-    # TypesToProcess = @()
-
-    # Format files (.ps1xml) to be loaded when importing this module
-    # FormatsToProcess = @()
-
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-    # NestedModules = @()
+    NestedModules = @("InstallModules.psm1")
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = '*'
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
-    #CmdletsToExport = '*'
+    CmdletsToExport = @('Get-O365ModuleFile','Import-DataFile' )
 
     # Variables to export from this module
     #VariablesToExport = '*'
@@ -90,24 +78,16 @@
             # Tags applied to this module. These help with module discovery in online galleries.
             Tags = @('O365')
             #Tags = @('O365','RMS','Admin','UCC','Exchange','SharePoint','Skype','PnP-Powershell','Office 365','Compliance')
-            # A URL to the license for this module.
+
             LicenseUri = 'https://github.com/Josverl/Connect-O365/raw/master/License'
-            # A URL to the main website for this project.
             ProjectUri = 'https://github.com/Josverl/Connect-O365'
-            # A URL to an icon representing this module.
             IconUri = 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/Connect-O365'
-            # ReleaseNotes of this module
             ReleaseNotes = 'Connect-O365 Refactoring, removed Module Signing'
 
         } # End of PSData hashtable
 
     } # End of PrivateData hashtable
 
-    # HelpInfo URI of this module
-    # HelpInfoURI = ''
-
-    # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
-    # DefaultCommandPrefix = ''
 
 }
 

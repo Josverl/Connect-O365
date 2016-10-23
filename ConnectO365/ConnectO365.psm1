@@ -185,3 +185,6 @@
         return $admincredentials
     }
 
+Export-ModuleMember -Function "*-MyCreds"
+Export-ModuleMember -function "RetrieveCredentials"
+
