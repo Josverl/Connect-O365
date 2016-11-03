@@ -92,7 +92,7 @@ Add-Type @"
     using System;
     using System.Runtime.InteropServices;
 
-    public static class KnownFolder
+    public static class O365KnownFolder
     {
         public static readonly Guid Documents = new Guid( "FDD39AD0-238F-46AF-ADB4-6C85480369C7" );
         public static readonly Guid Downloads = new Guid( "374DE290-123F-4565-9164-39C4925E467B" );
