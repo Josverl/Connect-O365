@@ -1,4 +1,20 @@
+BUG : UCC error 
+
+PS C:\Users\josverl\onedrive\powershell> Connect-O365.ps1  -Account admin@atticware.onmicrosoft.com -SharePoint -AAD -UCC
+UserName admin@atticware.onmicrosoft.com
+Azure AD
+SharePoint Online
+Import-PSSession : The attribute cannot be added because variable Credential with value  would no longer be valid.
+At C:\Program Files\WindowsPowerShell\Scripts\Connect-O365.ps1:556 char:17
++ ...             Import-PSSession $PSCompliance -AllowClobber -Verbose:$fa ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : MetadataError: (:) [Import-PSSession], ValidationMetadataException
+    + FullyQualifiedErrorId : ValidateSetFailure,Microsoft.PowerShell.Commands.ImportPSSessionCommand
+
+
+
 BUG : Auto restart bij installatie van de 'Sign in Assitstant' ??
+	Microsoft Online Services Sign-In Assistant for IT Professionals Version : 7.250.4556.0  is already installed
 	Daar moet op z'n minst een waarschuwing voor.
 
 

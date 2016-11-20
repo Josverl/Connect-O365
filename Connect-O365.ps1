@@ -1,6 +1,6 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.7.8
+.VERSION 1.7.9
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
@@ -13,6 +13,7 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
+v1.7.9  removed import collision on Credential Parameter
 v1.7.8  Add -Credential Parameter, refactored to modules 
 v1.7.2  Update tests for changed external dependency name SharePointPnPPowerShellOnline
 V1.7.1  Minor improvements in account lookup     
@@ -249,7 +250,7 @@ DynamicParam {
     }
 }
 begin {
-    
+
 
 
     # Verbose log of the input parameters
@@ -377,6 +378,9 @@ Process{
             $admincredentials = RetrieveCredentials -account $Credential 
         }
     }
+    #avoid collision with UCC module import by removing the $credential variable 
+    Remove-Variable Credential
+
 
     # Admin , the main part and purpose 
     If ( $PsCmdlet.ParameterSetName -iin "Admin","Credential" ) {
@@ -557,6 +561,7 @@ Process{
             if ($PSCompliance) {
                 $PSCompliance.Name = "Compliance Center"
                 Import-PSSession $PSCompliance -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
+
                 Write-Host -f Green $Operation
             } else {
                 Write-Warning $ConnectError[0].ErrorDetails

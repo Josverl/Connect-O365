@@ -1,4 +1,4 @@
-<#
+﻿<#
     Variables that can be used : 
     - $language         EN      NL 
     - $LangCountry      EN-US   NL-NL 

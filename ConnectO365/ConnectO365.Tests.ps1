@@ -1,4 +1,4 @@
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+﻿$here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $sut = (Split-Path -Leaf $MyInvocation.MyCommand.Path) -replace '\.Tests\.', '.'
 $sut = $sut -replace '.ps1', '.psd1'
 
@@ -9,7 +9,7 @@ $ModuleName = 'ConnectO365'
 get-module -Name connecto365 -all  | remove-module 
 
 #Now load the fresh Module
-Import-Module (Join-path $here $ModuleName) -Force -DisableNameChecking
+Import-Module (Join-path $here $ModuleName) -Force -DisableNameChecking -Verbose
 
 #and some supporting mods 
 Import-Module credentialmanager 
