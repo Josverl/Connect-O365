@@ -1,4 +1,4 @@
-
+﻿
 
 
 
@@ -120,5 +120,5 @@ Add-Type @"
 "@ 
 
 
-Export-ModuleMember -Cmdlet 'Import-DataFile' 
-Export-ModuleMember -Cmdlet 'Get-O365ModuleFile'  
+#Export-ModuleMember -Cmdlet 'Import-DataFile' 
+#Export-ModuleMember -Cmdlet 'Get-O365ModuleFile'  
