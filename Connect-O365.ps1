@@ -1,10 +1,10 @@
 ﻿<#PSScriptInfo
 .TITLE Connect-O365
-.VERSION 1.6.7.3
+.VERSION 1.7.9
 .GUID a3515355-c4b6-4ab8-8fa4-2150bbb88c96
 .AUTHOR Jos Verlinde [MSFT]
 .COMPANYNAME Microsoft
-.COPYRIGHT 
+.COPYRIGHT Jos Verlinde 2016
 .TAGS  O365 RMS 'Exchange Online' 'SharePoint Online' 'Skype for Business' 'PnP-Powershell' 'Office 365'
 .LICENSEURI https://github.com/Josverl/Connect-O365/raw/master/License
 .PROJECTURI https://github.com/Josverl/Connect-O365
@@ -13,12 +13,17 @@
 .REQUIREDSCRIPTS 
 .EXTERNALSCRIPTDEPENDENCIES 
 .RELEASENOTES
-V1.6.8  Add glabal variables $TenantName and AdminName, consistent parameter names 
+v1.7.9  removed import collision on Credential Parameter
+v1.7.8  Add -Credential Parameter, refactored to modules 
+v1.7.2  Update tests for changed external dependency name SharePointPnPPowerShellOnline
+V1.7.1  Minor improvements in account lookup     
+V1.6.9  Updated changed external dependency name SharePointPnPPowerShellOnline
+V1.6.8  Add global variables $TenantName and $AdminName, consistent parameter names 
 V1.6.7  Correct script for CredentialManager 2.0.0.0 parameter changes 
 V1.6.5  Add autocompletion for saved accounts and credential manager, change default for -AAD, improve connection error checks
 V1.6.3  Add progress bars
 V1.6.2  Resolve multiple Aliases per parameter bug on some PS flavors, 
-V1.6.1  Add test for Sign-in Assistant,Add pro-acive check for modules during administration.
+V1.6.1  Add test for Sign-in Assistant,Add pro-active check for modules during administration.
 V1.6.0  Publish to Github
 v1.5.9  update install OS version match logic to use [System.Environment]::OSVersion.Version, correct DefaultParameterSetName=”Admin", Add -test option to check correct installation
 V1.5.8  Seperate configuration download info from script, Retrieve Module info from github.
@@ -33,7 +38,9 @@ V1.1    Initial publication to scriptcenter
 #>
 
 #Requires -Module @{ModuleName="CredentialManager";ModuleVersion="2.0"}
-#Requires -Module OfficeDevPnP.PowerShell.V16.Commands
+#Requires -Module @{ModuleName='ConnectO365';ModuleVersion="0.6"}
+
+<# #Requires -Module SharePointPNPPowershellOnline #>
 
 <#
 .Synopsis
@@ -92,56 +99,72 @@ Param
 <# valid for Admin and Close #>
     #Connect to Azure AD aka MSOnline 
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("AzureAD")] 
     [switch]$AAD = $false, 
 
     #Connect to Exchange Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("EXO")] 
     [switch]$Exchange = $false, 
 
     #Connect to Skype Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("CSO","Lync")] 
     [switch]$Skype = $false, 
     
     #Connecto to SharePoint Online
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("SPO","ODFB")] 
     [switch]$SharePoint = $false, 
 
     #Connecto to SharePoint Online PNP
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("PNP")] 
     [switch]$SharePointPNP = $false, 
         
     #Load and connecto to the O365 Compliance center
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
+    [Alias("UCC")] 
     [switch]$Compliance = $false,
 
     #Connect to Azure Rights Management
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [Alias("RMS","AzureRMS")] 
     [switch]$AADRM = $false,
 
     #All Services
     [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [switch]$All = $false,
+
+<# parameterset Creds #>
+    # Specify the (Admin) Account to authenticate with
+    [Parameter(ParameterSetName="Credential",Mandatory=$true,Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [PSCredential]$Credential,
 
 <# parameterset Close #>
     #Close all open Connections
     [Parameter(ParameterSetName="Close",Mandatory=$false)]
     [switch]$Close = $false,
 
-<# parameterset INstall #>
+
+<# parameterset Install #>
     #Download and Install the supporting Modules
     [Parameter(ParameterSetName="Install",Mandatory=$true)]
     [switch]$Install,
@@ -170,15 +193,21 @@ Param
 
 #Mixed parameterset
 
-    # Save the account credentials for later use        
+    [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    [Parameter(ParameterSetName="Credential",Mandatory=$false)]    
+    [Parameter(ParameterSetName="Test",Mandatory=$false)]
+    [Parameter(ParameterSetName="Close",Mandatory=$false)]
+    [switch]$PassThrough = $false,
+
+    # Test for installed external modules         
     [Parameter(ParameterSetName="Test",Mandatory=$false)]    
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
+    [Alias("Verify")]
     [switch]$Test = $false, 
 
-    #Force asking for, and optionally force the Perstistance of the credentials.
-#   [Parameter(ParameterSetName="Admin",Mandatory=$false)]
+    #Force download and re-installation of modules.
     [Parameter(ParameterSetName="Install",Mandatory=$false)]
-    [switch]$Force = $false
+    [switch]$Repair = $false
 )
 
 DynamicParam {
@@ -191,18 +220,29 @@ DynamicParam {
             $arrSet = Get-ChildItem -Path "$env:USERPROFILE\Creds" 
             $arrSet | ForEach-Object {
                 # Completion text , ListItem text, Resulttype, Tooltip
-                New-Object System.Management.Automation.CompletionResult $_.BaseName, $_.BaseName, 'DynamicKeyword', $_.FullName
+                New-Object System.Management.Automation.CompletionResult $_.BaseName, $_.BaseName, 'ProviderItem', $_.FullName
             }
             #check if the credentialmanager module is installed 
             $CM = get-module credentialmanager -ListAvailable | select -Last 1
             if ($cm -ne $null -and $CM.Version -eq "2.0") {
                 #Find the credentials stored in the credential manager (version 2.0
-                $credentials = Get-StoredCredential -Type GENERIC -AsCredentialObject -WarningAction SilentlyContinue
-                $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment 
+                $storedcredentials = Get-StoredCredential -Type GENERIC -AsCredentialObject -WarningAction SilentlyContinue
+
+                #Only the onese with a specified targetname different from the username
+                $credentials = $storedcredentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, @{Name="TargetName";Expression={$($_.Targetname).Replace("LegacyGeneric:target=","")}} , Type, TargetAlias, Comment 
+                $credentials = $credentials | where { $_.targetname -ne $_.Username}
                 #now create the list               
                 $credentials| ForEach-Object {
                     # Completion text , ListItem text, Resulttype, Tooltip
-                    if ($_.Comment -ne $null ) {$TTIP = $_.Comment } else { $TTIP = $_.Targetname}
+                    New-Object System.Management.Automation.CompletionResult $_.TargetName, $_.TargetName, 'DynamicKeyword', $_.Username
+                }
+
+                #Now All 
+                $credentials = $storedcredentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment 
+                #now create the list               
+                $credentials| ForEach-Object {
+                    # Completion text , ListItem text, Resulttype, Tooltip
+                    if ($_.Comment -ne $null ) {$TTIP = $_.Comment } else { $TTIP = $($_.Targetname).Replace("LegacyGeneric:target=","") }
                     New-Object System.Management.Automation.CompletionResult $_.UserName, $_.Username, 'History', $TTIP
                 }
             }
@@ -210,177 +250,9 @@ DynamicParam {
     }
 }
 begin {
-    <#
-    .Synopsis
-       Retrieve credentials using the UI and store these in a file in the userprofile\creds folder
-       the credentials are also returned.
-    .EXAMPLE
-       Store-MyCreds -UserName Admin@contoso.com
-    #>
-    $script:MSG_Cred = 'Please enter the Tenant Admin or Service Admin password'
-    $script:MSG_CredCancel = 'No password entered or user canceled'
-    function global:Store-myCreds {
-    Param (
-            # The Account or Username 
-            [Parameter()]
-            [ValidateNotNullOrEmpty()]
-            [Alias("Username")]  # Backward compat with v1.6.7 and older 
-            [string]$Account
-    )
-        $Credential = Get-Credential -Account $Account -Message $Script:MSG_Cred
-        if ($Credential) { 
-            $Store = "$env:USERPROFILE\creds\$Account.txt"
-            MkDir "$env:USERPROFILE\Creds" -ea 0 | Out-Null
-            $Credential.Password | ConvertFrom-SecureString | Set-Content $store
-            Write-Verbose "Saved credentials to $store"
-        } else {
-            write-warning $script:MSG_CredCancel
-        }    
-        return $Credential 
-     }
-    
-    <#
-    .Synopsis
-       Test if credentials for a specific username are stored in the \creds folder
-    .EXAMPLE
-       if ( Test-MyCreds -UserName Admin@contoso.com ) { "credentials found" }
-    #>
-    function script:Test-myCreds {
-    param( 
-            # The Account or Username 
-            [Parameter()]
-            [ValidateNotNullOrEmpty()]
-            [Alias("Username")]  # Backward compat with v1.6.7 and older 
-            [string]$Account
-        )
-        $Store = "$env:USERPROFILE\creds\$Account.txt"
-        return (Test-Path $store)
-    }
-    <#
-    .Synopsis
-       retrieve credentials 
-       -Persist indicates that the credentials should be saved 
-       -Force   indicates that the password should be re-entered by the user 
-    .EXAMPLE
-       # retrieve the stored credentials, if not present just prompt for the password 
-       Get-MyCreds -UserName Admin@contoso.com
-   
-    .EXAMPLE
-       # store the credentials for future re-use, overwrites any existing credentials
-       Get-MyCreds -UserName Admin@contoso.com -persist
 
-    #>
 
-    <#
-    .Synopsis
-       Short description
-    .DESCRIPTION
-       Long description
-    .EXAMPLE
-       Example of how to use this cmdlet
-    .EXAMPLE
-       Another example of how to use this cmdlet
-    #>
-    function global:Get-myCreds {
-        Param
-        (
-            # The Account or Username 
-            [Parameter()]
-            [ValidateNotNullOrEmpty()]
-            [Alias("Username")]  # Backward compat with v1.6.7 and older 
-            [string]$Account,
-            # Persist username and password 
-            [switch] $Persist
-        )
-        $Store = "$env:USERPROFILE\creds\$Account.txt"
-        if ( (Test-Path $store) -AND  $Persist -eq $false  ) {
-            #use a stored password if found , unless -persist/-force is used to ask for and store a new password
-            Write-Verbose "Retrieved credentials from $store"
-            $Password = Get-Content $store | ConvertTo-SecureString
-            $Credential = New-Object System.Management.Automation.PsCredential($Account,$Password)
-            return $Credential
-        } else {
-            if ($persist -and -not [string]::IsNullOrEmpty($Account)) {
-                WRITE-VERBOSE 'Ask and store new credentials'
-                $admincredentials  = Store-myCreds $Account
-                return $admincredentials
-            } else {
-                WRITE-VERBOSE 'Ask for credentials'
-                return Get-Credential -Credential $Account
-            }
-        }
-     }
 
-    <#
-    .Synopsis
-       Retrieves credentials that are stored either in the \creds folder, or in the windows storedcredentials 
-       Windows stored credentials depend on an external module to be in installed (CredentialManager) 
-    .EXAMPLE
-        retrieve-credentials -account admin@contso.com 
-    .EXAMPLE
-        retrieve-credentials -account admin@contso.com -persist
-    .EXAMPLE
-        #retrieve a credentian using a alias from the credential manager
-        retrieve-credentials -account Production
-
-    #>
-    function global:retrieve-credentials {
-        Param
-        (
-            # The Account or Username 
-            [Parameter()]
-            [ValidateNotNullOrEmpty()]
-            [string]$Account,
-            [switch]$Persist
-        )
-        $admincredentials = $null
-        #if credentials are stored in the filestore 
-        if (test-myCreds  $account) {
-            write-verbose 'Find credentials from credential folder'
-            $admincredentials = Get-myCreds $account -Persist:$Persist 
-        } else { 
-
-            #check if the credentialmanager module is installed 
-            $CM = get-module credentialmanager -ListAvailable | select -Last 1
-            if ($cm -ne $null -and $CM.Version -eq "2.0") {
-                write-verbose 'Find credentials stored in the credential manager'
-                #Find the credentials stored in the credential manager
-                #check match on target name
-                $stored = Get-StoredCredential -Type GENERIC -Target  $account -AsCredentialObject| select -First 1
-                #otherwise check on username
-                if ($stored -eq $null) {
-                    write-verbose 'Find credentials based on user name'
-                    $credentials = Get-StoredCredential -Type GENERIC -AsCredentialObject
-                    #work around pipeline constraints in get-stored 
-                    $credentials = $credentials | where { $_.UserName -like '?*@?*' -and $_.Type -eq 'GENERIC'} | select -Property UserName, TargetName, Type, TargetAlias, Comment
-                    $stored = $credentials | where {$_.UserName-ieq $account} | select -First 1
-                }
-                if ($persist) {
-                    write-verbose 'Asking for a new password'
-                    #if -Persist is specified we need to ask for a new password and update the stored password
-                    if ($stored) { $name= $stored.Username } else { $name=$account}
-                    $newCred = Get-Credential -UserName $name -Message $Script:MSG_Cred
-                    if ($newCred -eq $null) {
-                        write-warning $script:MSG_CredCancel
-                    } else {
-                        if ($stored) {
-                            write-verbose 'Update existing Stored Credential'
-                            $stored = New-StoredCredential -Comment "Connect-O365" -Password $newCred.GetNetworkCredential().Password -Persist ENTERPRISE -Target $stored.TargetName -Type GENERIC -UserName $newcred.UserName 
-                        } else {
-                            write-verbose 'Create New Stored Credential'
-                            $stored = New-StoredCredential -Comment "Connect-O365" -Password $newCred.GetNetworkCredential().Password -Persist ENTERPRISE -Target $newcred.UserName -Type GENERIC -UserName $newcred.UserName 
-                        }
-                    }
-                }
-                #If a stored cred was found
-                if ($stored -ne $null) {
-                    write-verbose "Retrieving Target : $($stored.Targetname)"
-                    $admincredentials = Get-StoredCredential -Target $stored.Targetname -Type 'GENERIC'
-                }        
-            }
-        }
-        return $admincredentials
-    }
     # Verbose log of the input parameters
     Write-Verbose -Message 'Connect-O365 Parameters :'
     $PSBoundParameters.GetEnumerator() | ForEach-Object { Write-Verbose -Message "$($PSItem)" }
@@ -389,11 +261,12 @@ begin {
     If ( $PsCmdlet.ParameterSetName -ieq "Close" ) 
     {
         if ( $all -eq $false -and  $exchange -eq $false -and $skype -eq $false -and $Compliance -eq $false  -and $SharePoint -eq $false -and $AADRM -eq $false) {
-            Write-Verbose "Online Workload specified, assume all workloads"
+            Write-Verbose "Online Workload not specified, assume all workloads"
             $all = $true
         }
     }
-    If ( $PsCmdlet.ParameterSetName -iin "Close","Admin" ) 
+
+    If ( $PsCmdlet.ParameterSetName -iin "Close","Admin","Credential" ) 
     {
         if ( -not ( $Exchange -or $Skype -or $Compliance -or $SharePoint -or $SharePointPNP -or $AADRM ))
             { $AAD = $true } # default to AAD Only
@@ -417,6 +290,8 @@ begin {
 }
 
 Process{ 
+    import-module connecto365 -DisableNameChecking -WarningAction SilentlyContinue
+    
     # Optionally close any prior sessions
     If ( $PsCmdlet.ParameterSetName -eq "Close") {
          Try {
@@ -450,7 +325,7 @@ Process{
                 }
             }
             if ($SharePointPNP) { 
-                if ( get-module OfficeDevPnP.PowerShell.V16.Commands )
+                if ( get-module SharepointPnPPowerShellOnline )
                 {
                     #Also Disconnect PNPPowershell
                     write-verbose "- Disconnect PNP Powershell"
@@ -468,24 +343,53 @@ Process{
                     Disconnect-AadrmService 
                 }
             } 
-            return $True
+            if ($PassThrough) { # Only return value if requested
+                return $True
+            }
         } catch {
-            return $false
+            if ($PassThrough) { # Only return value if requested 
+                return $false
+            }
         }
         Finally {
             Write-Progress "Connect-O365" -Completed  
         }
     }
 
-    # Admin , the main part and purpose 
     If ( $PsCmdlet.ParameterSetName -eq "Admin") {
-        $operation = "Retrieve Credentials"
+        $operation = "Retrieve stored Account Credential"
+        write-verbose $Operation
+        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+        #retrieve admin credentials for filestore and secure store 
+        $admincredentials = RetrieveCredentials -account $account -Persist:$persist
+
+    }
+    
+    If ( $PsCmdlet.ParameterSetName -eq "Credential") {
+        $operation = "Retrieve PSCredential"
+        write-verbose $Operation
+        Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
+
+        if ($Credential){
+            Write-verbose "Credential has been provided"
+            $admincredentials = $Credential
+        } else {
+            Write-verbose "Need to ask for credential"
+            $admincredentials = RetrieveCredentials -account $Credential 
+        }
+    }
+    #avoid collision with UCC module import by removing the $credential variable 
+    Remove-Variable Credential
+
+
+    # Admin , the main part and purpose 
+    If ( $PsCmdlet.ParameterSetName -iin "Admin","Credential" ) {
+        $operation = "Connecting to O365 Services"
         write-verbose $Operation
         Write-Progress "Connect-O365" -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
         $script:Prog_pct += $prog_step        
-    
-        #retrieve admin credentials for filestore and secure store 
-        $admincredentials = retrieve-credentials -account $account -Persist:$persist
+
+
         if ($admincredentials -eq $null){ 
             Write-Verbose "No stored credentials could be found"
             throw "A valid Tenant Admin Account is required." 
@@ -504,7 +408,9 @@ Process{
             if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                 Write-warning "Required module: $mod is not installed or cannot be located."
                 Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                return $false
+                if ($PassThrough ) { #Only return if requested 
+                    return $false
+                }
             }
             #Imports the installed Azure Active Directory module.
             Import-Module MSOnline -Verbose:$false 
@@ -536,7 +442,9 @@ Process{
             if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                 Write-warning "Required module: $mod is not installed or cannot be located. "
                 Write-Host "Install the missing module using the -Install parameter; or restart PowerShell" -ForegroundColor Yellow
-                return $false
+                if ($PassThrough ) { #Only return if requested 
+                    return $false
+                }
             }
             #Imports the installed Skype for Business Online services module.
             Import-Module SkypeOnlineConnector -Verbose:$false  -Force 
@@ -576,7 +484,9 @@ Process{
                 if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                     Write-warning "Required module: $mod is not installed or cannot be located. "
                     Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                    return $false
+                    if ($PassThrough ) { #Only return if requested 
+                        return $false
+                    }
                 }
                 #Imports SharePoint Online session commands into your local Windows PowerShell session.
                 Import-Module Microsoft.Online.Sharepoint.PowerShell -DisableNameChecking -Verbose:$false
@@ -602,13 +512,15 @@ Process{
 
             try { 
                 write-verbose $Operation
-                $mod = 'OfficeDevPnP.PowerShell.V16.Commands'
+                $mod = 'SharepointPnPPowerShellOnline'
                 if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                     Write-Warning "Required module: $mod is not installed or cannot be located. "
                     Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                    #return $false
+                    if ($PassThrough ) { #Only return if requested 
+                        return $false
+                    }
                 }
-                import-Module OfficeDevPnP.PowerShell.V16.Commands -DisableNameChecking -Verbose:$false
+                import-Module SharepointPnPPowerShellOnline -DisableNameChecking -Verbose:$false
                 Connect-SPOnline -Credential $admincredentials -url "https://${Global:TenantName}.sharepoint.com"
                 Write-Host -f Green $Operation
             } catch {
@@ -649,6 +561,7 @@ Process{
             if ($PSCompliance) {
                 $PSCompliance.Name = "Compliance Center"
                 Import-PSSession $PSCompliance -AllowClobber -Verbose:$false -DisableNameChecking | Out-Null
+
                 Write-Host -f Green $Operation
             } else {
                 Write-Warning $ConnectError[0].ErrorDetails
@@ -664,7 +577,9 @@ Process{
             if ( (get-module -Name $mod -ListAvailable) -eq $null ) {
                 Write-Warning "Required module: $mod is not installed or cannot be located. "
                 Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
-                return $false
+                if ($PassThrough ) { #Only return if requested 
+                    return $false
+                }
             }
             import-module AADRM -Verbose:$false
 
@@ -681,104 +596,25 @@ Process{
         }
     }
 
-    <#
-    .Synopsis
-       import a .psd1 file from a url ,( Github) 
-    .DESCRIPTION
-       import a .psd1 file from a url 
-       and perform a safe expansion using a number of predefined variables.
-    #>
-    function Import-DataFile
-    {
-        param (
-            [Parameter(Mandatory)]
-            [string] $Url
-        )
-        try
-        {
-            #setup variables to use during configuration expansion
-            $CPU = $env:PROCESSOR_ARCHITECTURE
-            switch ($env:PROCESSOR_ARCHITECTURE)
-            {
-                'x86'   {$xcpu = 'x86' ; $bitness='32';}
-                'AMD64' {$xcpu = 'x64' ; $bitness='64'; }
-            }
-            $Filename = $URL.Split("/")[-1]
-            try {   wget -Uri $URL -OutFile "$env:TEMP\$Filename" } 
-            #failsafe if IE never been run 
-            catch { wget -Uri $URL -OutFile "$env:TEMP\$Filename" -UseBasicParsing  } 
-
-            $content = Get-Content -Path "$env:TEMP\$Filename" -Raw -ErrorAction Stop
-            Remove-Item "$env:TEMP\$Filename" -Force
-            $scriptBlock = [scriptblock]::Create($content)
-
-            # This list of approved cmdlets and variables is what is used when you import a module manifest
-            [string[]] $allowedCommands = @( 'ConvertFrom-Json', 'Join-Path', 'Write-Verbose', 'Write-Host' )
-            #list of pedefined variables that can be used
-            [string[]] $allowedVariables = @('language' ,'LangCountry', 'cpu','xcpu' , 'bitness' )
-            # This is the important line; it makes sure that your file is safe to run before you invoke it.
-            # This protects you from injection attacks / etc, if someone has placed malicious content into
-            # the data file.
-            $scriptBlock.CheckRestrictedLanguage($allowedCommands, $allowedVariables, $true)
-            #
-            return & $scriptBlock
-        }
-        catch
-        {
-            throw
-        } 
-    }
-
-
     If ( $PsCmdlet.ParameterSetName -eq "Install") {
         Write-Host -f Yellow "Starting Installation"
     
         #always perform module test after installation 
         $test = $true
-    # Get the location of the downloads folder 
-    # Ref : http://stackoverflow.com/questions/25049875/getting-any-special-folder-path-in-powershell-using-folder-guid 
-    Add-Type @"
-        using System;
-        using System.Runtime.InteropServices;
-
-        public static class KnownFolder
-        {
-            public static readonly Guid Documents = new Guid( "FDD39AD0-238F-46AF-ADB4-6C85480369C7" );
-            public static readonly Guid Downloads = new Guid( "374DE290-123F-4565-9164-39C4925E467B" );
-        }
-        public class shell32
-        {
-            [DllImport("shell32.dll")]
-            private static extern int SHGetKnownFolderPath(
-                    [MarshalAs(UnmanagedType.LPStruct)] 
-                    Guid rfid,
-                    uint dwFlags,
-                    IntPtr hToken,
-                    out IntPtr pszPath
-                );
-                public static string GetKnownFolderPath(Guid rfid)
-                {
-                IntPtr pszPath;
-                if (SHGetKnownFolderPath(rfid, 0, IntPtr.Zero, out pszPath) != 0)
-                    return ""; // add whatever error handling you fancy
-                string path = Marshal.PtrToStringUni(pszPath);
-                Marshal.FreeCoTaskMem(pszPath);
-                return path;
-                }
-        }
-"@ 
         #Lookup downloads location
         if ($Folder -eq $null ) {$folder = [shell32]::GetKnownFolderPath([KnownFolder]::Downloads) }
         write-verbose "Download folder : $folder"
 
+
+        Get-O365ModuleFile
         $operation = "Load the required module information from the configuration file"
         write-verbose $Operation
         Write-Progress "Install External PowerShell modules to connect to Office 365" `
             -CurrentOperation $Operation -PercentComplete $script:Prog_pct ; 
 
         #load the required modules from a configuration file on GitHub
-        $Components = Import-DataFile -url 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/RequiredModuleInfo.psd1' 
-    
+        $Components = Import-DataFile -url 'https://raw.githubusercontent.com/Josverl/Connect-O365/master/RequiredModuleInfo.psd1'
+
         #figure out the progress rate 
         $script:Prog_step = 100 / $components.AdminComponents.Count
         $script:Prog_pct = $script:Prog_step
@@ -789,6 +625,8 @@ Process{
         Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | sort -Property DisplayName | select PSChildName, DisplayName, Publisher, DisplayVersion
         #>
         foreach ($c  in $Components.AdminComponents) {
+
+
             $operation = "Install $($C.Name)"
             write-verbose $Operation
             Write-Progress "Install External PowerShell modules to connect to Office 365" `
@@ -839,7 +677,7 @@ Process{
                                     try { 
                                         if ($c.Type -ieq "MSI" ) {
                                             Write-Verbose "Install MSI package : $msi"
-                                            Start-Process -FilePath "msiexec" -ArgumentList "/package $msi /passive" -Wait
+                                            Start-Process -FilePath "msiexec" -ArgumentList "/package $msi /passive /promptrestart" -Wait
                                         } else {
                                             $Options = "/Passive"
                                             if ($c.Setup ) { $Options = $c.SetupOptions }
@@ -940,6 +778,8 @@ Process{
         $script:Prog_pct = 0
         $script:Prog_step = 100 /6
 
+        $AllOk = $true    #Let's start Positive 
+
         $ServiceName ='Microsoft Online Services Sign-in Assistant'
 
         $operation = $ServiceName
@@ -954,11 +794,13 @@ Process{
         {
             Write-Host 
             Write-Warning "Service : '$ServiceName' is not installed"
+            $AllOk = $false
         } else {
             if ($SignInAssistant.Status -ine "Running" ) {
                 Write-Host 
                 Write-Warning "Service '$ServiceName' is not running"
                 Write-Host "Install the missing module using the -Install parameter." -ForegroundColor Yellow
+                $AllOk = $false
             }
             else {
                 Write-Host " - OK" -ForegroundColor Green
@@ -966,7 +808,7 @@ Process{
         }
 
         #test if all Local modules are installed correctly 
-        foreach ($module in @( "MSonline","SkypeOnlineConnector","Microsoft.Online.Sharepoint.PowerShell","OfficeDevPnP.PowerShell.V16.Commands","AADRM" ) ) {
+        foreach ($module in @( "MSonline","SkypeOnlineConnector","Microsoft.Online.Sharepoint.PowerShell","SharepointPnPPowerShellOnline","AADRM" ) ) {
             $operation = $Module
             write-verbose $Operation
             Write-Progress "Test and validate External powershell modules to connect to Office 365" `
@@ -979,6 +821,7 @@ Process{
                 Write-Host 
                 Write-warning "Module '$Module' is not installed or cannot be located."
                 Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
+                $AllOk = $false
 
             } else {
                 Try {
@@ -989,8 +832,13 @@ Process{
                     Write-Host 
                     Write-warning "Module '$Module' could not be Imported."
                     Write-Host "Install the missing module using the -Install parameter, or restart PowerShell." -ForegroundColor Yellow
+                    $AllOk = $false
                 }
             }
+        }
+        #All test complete, and -Passthough specified, return the test result 
+        if ($PassThrough) {
+            return $AllOk
         }
     }
 }
