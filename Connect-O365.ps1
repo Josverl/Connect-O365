@@ -331,7 +331,7 @@ Process{
                     write-verbose "- Disconnect PNP Powershell"
                     Write-Progress "Connect-O365" -CurrentOperation "Closing - SharePoint Online PnP Powershell" -PercentComplete $script:Prog_pct ; 
                     $script:Prog_pct += $prog_step
-                    Try { Disconnect-SPOnline -ErrorAction Ignore } catch{}
+                    Try { Disconnect-PnPOnline -ErrorAction Ignore } catch{}
                 }
             } 
             If($AADRM) { 
@@ -521,7 +521,7 @@ Process{
                     }
                 }
                 import-Module SharepointPnPPowerShellOnline -DisableNameChecking -Verbose:$false
-                Connect-SPOnline -Credential $admincredentials -url "https://${Global:TenantName}.sharepoint.com"
+                Connect-PnPOnline -Credential $admincredentials -url "https://${Global:TenantName}.sharepoint.com"
                 Write-Host -f Green $Operation
             } catch {
                 Write-Warning "Unable to connect to SharePoint Online using the PnP PowerShell module"
